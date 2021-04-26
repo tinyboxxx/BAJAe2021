@@ -52,14 +52,27 @@ U8G2_SSD1322_NHD_256X64_F_4W_HW_SPI u8g2(U8G2_R0, /* cs=*/5, /* dc=*/12, /* rese
 // const float Home_LNG = -96.951125; // Your Home Longitude
 // int incomingByte;
 // TinyGPSPlus gps; // Create an Instance of the TinyGPS++ object called gps
-int i = 0;
-int fpsOLED = 0;
+unsigned int i = 0;
+unsigned int fpsOLED = 0;
 long lastOLEDrefreshTime = 0;
 
 int fpsGPS = 0;
 
-int RPM = 0;
-int SPD = 0; //千米每小时
+bool isOTAing = 0;
+unsigned int OTAprogress = 0;
+unsigned int OTAtotal = 0;
+
+//行车数据变量=============================
+unsigned int RPM = 0;
+unsigned int SPD = 0; //千米每小时
+
+unsigned int SUS_LF = 0;//减振器，ADC值，0->4096
+unsigned int SUS_RF = 0;
+unsigned int SUS_LR = 0;
+unsigned int SUS_RR = 0;
+
+int GFx = 0;
+int GFy = 0;
 
 void setup(void)
 {
@@ -105,6 +118,9 @@ void setup(void)
         })
         .onProgress([](unsigned int progress, unsigned int total) {
             Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+            isOTAing = 1;
+            OTAprogress = progress;
+            OTAtotal = total;
         })
         .onError([](ota_error_t error) {
             Serial.printf("Error[%u]: ", error);
@@ -183,7 +199,7 @@ void setup(void)
         ,
         NULL);
     xTaskCreate(
-        updateRevvingI, "updateRevvingI" // 为了方便人读，取的名字
+        updateRevving, "updateRevving" // 为了方便人读，取的名字
         ,
         512 // 可以通过阅读Stack Highwater来检查和调整此堆栈大小
         ,
@@ -206,20 +222,9 @@ void drawSignal(U8G2 u8g2, uint8_t x, uint8_t y, uint8_t strength)
     }
 }
 
-int revving(int UPlimit, int Downlimit, int i)
+void drawGForce() //x:-100~100
 {
-    int pp = UPlimit - Downlimit;
-    int currentRev;
-    bool goingDown = (i / pp) / 2;
-    if (goingDown)
-        currentRev = UPlimit - i % pp;
-    else
-        currentRev = Downlimit + i % pp;
-    return currentRev;
-}
 
-void drawGForce(int x, int y) //x:-100~100
-{
     u8g2.drawFrame(0, 11, 52, 52); //GForce
     //长宽都是53，一半的长度是26
     //X:0->26->52
@@ -229,9 +234,31 @@ void drawGForce(int x, int y) //x:-100~100
     u8g2.drawLine(26, 11, 26, 63); //纵向中心线
     //u8g2.drawFrame(13, 24, 26, 26); //小圈,方的
     u8g2.drawCircle(26, 37, 13, U8G2_DRAW_ALL); //小圈，圆的
-    //
+
     u8g2.drawBox(25, 36, 3, 3); //指示点
 }
+
+void drawSUS() //减振器信息绘制任务
+{
+    //4096->40
+    //=x* 0.009765625
+
+    u8g2.drawFrame(87, 0, 7, 40);    //LF
+    u8g2.drawFrame(75, 23, 10, 40);  //LR
+    u8g2.drawFrame(158, 0, 7, 40);   //RF
+    u8g2.drawFrame(167, 23, 10, 40); //RR
+
+    int hLF = SUS_LF * 0.009765625;
+    int hRF = SUS_RF * 0.009765625;
+    int hLR = SUS_LR * 0.009765625;
+    int hRR = SUS_RR * 0.009765625;
+
+    u8g2.drawBox(87, 40 - hLF, 7, hLF);   //LF full
+    u8g2.drawBox(75, 64 - hLR, 10, hLR);  //LR
+    u8g2.drawBox(158, 40 - hRF, 7, hRF);  //RF
+    u8g2.drawBox(167, 64 - hRR, 10, hRR); //RR
+}
+
 void PrintToOLED(void *pvParameters) // OLED 刷新任务
 {
     (void)pvParameters;
@@ -248,76 +275,89 @@ void PrintToOLED(void *pvParameters) // OLED 刷新任务
 
         vTaskDelayUntil(&xLastWakeTime, xFrequency); // 等待下一个周期。
 
-        u8g2.clearBuffer();   //清空屏幕
-        u8g2.setDrawColor(1); // White
-        u8g2.setFontMode(0);
-        if (BNO055isOK)
+        if (isOTAing == 0)
         {
-            sprintf(PrinterStr, "R%04.0fP%04.0fH%04.0f", (float)event.orientation.x, (float)event.orientation.y, (float)event.orientation.z);
-            u8g2.setFont(u8g2_font_8x13B_tf);
-            u8g2.drawStr(0, 10, PrinterStr);
-            Serial.println(PrinterStr);
+
+            u8g2.clearBuffer();   //清空屏幕
+            u8g2.setDrawColor(1); // White
+            u8g2.setFontMode(0);
+            if (BNO055isOK)
+            {
+                sprintf(PrinterStr, "R%04.0fP%04.0fH%04.0f", (float)event.orientation.x, (float)event.orientation.y, (float)event.orientation.z);
+                u8g2.setFont(u8g2_font_8x13B_tf);
+                u8g2.drawStr(0, 10, PrinterStr);
+                Serial.println(PrinterStr);
+            }
+            u8g2.setDrawColor(1);
+            u8g2.setFont(u8g2_font_5x7_tr);
+            u8g2.drawStr(0, 6, "X-000,Y-000");
+
+            char bufferStr2[2];
+            sprintf(bufferStr2, "%02d", SPD);
+
+            u8g2.setFont(u8g2_font_logisoso42_tn);
+            u8g2.drawStr(98, 45, bufferStr2); //SPD文字显示
+
+            u8g2.setFont(u8g2_font_logisoso18_tn);
+
+            char bufferStr4[4];
+            sprintf(bufferStr4, "%04d", RPM);
+
+            u8g2.drawStr(210, 18, bufferStr4); //RPM文字显示
+
+            u8g2.setFont(u8g2_font_6x10_mr);
+            u8g2.drawStr(222, 25, "RPM");
+
+            u8g2.setFont(u8g2_font_6x10_mr); //日期时间显示
+            u8g2.drawStr(97, 55, "2021-04-24");
+            u8g2.drawStr(103, 64, "18:05:05");
+
+            drawSignal(u8g2, 180, 12, 4); //满格信号，三格
+
+            drawGForce(0, 0);
+
+            u8g2.setFont(u8g2_font_siji_t_6x10);
+            // u8g2.drawGlyph(x, y, 0xe242);   //empty
+            // u8g2.drawGlyph(x, y, 0xe250);   //half
+            u8g2.drawGlyph(194, 12, 0xe254); //full
+
+            // u8x8.setCursor(0, 1);
+            // /* Latitude */
+            // u8x8.print("a" + String(gps.location.lat(), 4));
+            // /* Longitude */
+            // u8x8.print("o" + String(gps.location.lng(), 4));
+
+            // u8x8.setCursor(0, 2);
+            // /* Satellites */
+            // u8x8.print("S" + String(gps.satellites.value()));
+            // u8x8.print("op" + String(gps.hdop.hdop(), 1));
+            // u8x8.print("sp" + String(gps.speed.kmph(), 0));
+
+            // u8x8.setCursor(0, 3);
+            // sprintf(PrinterStr, "%016d", i);
+            // u8x8.print(PrinterStr);
+
+            drawSUS();
+
+            u8g2.sendBuffer(); //更新至屏幕
+
+            fpsOLED = 1000.0 / (millis() - lastOLEDrefreshTime);
+            Serial.println(fpsOLED);
+            lastOLEDrefreshTime = millis();
         }
-        u8g2.setDrawColor(1);
-        u8g2.setFont(u8g2_font_5x7_tr);
-        u8g2.drawStr(0, 6, "X-000,Y-000");
-
-        u8g2.drawFrame(85, 1, 10, 30);
-        u8g2.drawFrame(85, 33, 10, 30);
-        u8g2.drawFrame(158, 1, 10, 30);
-        u8g2.drawFrame(158, 33, 10, 30);
-
-        char bufferStr2[2];
-        sprintf(bufferStr2, "%02d", SPD);
-
-        SPD = revving(60, 1, i);
-        u8g2.setFont(u8g2_font_logisoso42_tn);
-        u8g2.drawStr(98, 45, bufferStr2); //SPD文字显示
-
-        RPM = revving(3800, 1800, i);
-        u8g2.setFont(u8g2_font_logisoso18_tn);
-
-        char bufferStr4[4];
-        sprintf(bufferStr4, "%04d", RPM);
-
-        u8g2.drawStr(210, 18, bufferStr4); //RPM文字显示
-
-        u8g2.setFont(u8g2_font_6x10_mr);
-        u8g2.drawStr(222, 25, "RPM");
-
-        u8g2.setFont(u8g2_font_6x10_mr);//日期时间显示
-        u8g2.drawStr(97, 55, "2021-04-24");
-        u8g2.drawStr(103, 64 ,"18:05:05");
-
-        drawSignal(u8g2, 180, 12, 4); //满格信号，三格
-
-        drawGForce(0,0);
-
-        u8g2.setFont(u8g2_font_siji_t_6x10);
-        // u8g2.drawGlyph(x, y, 0xe242);   //empty
-        // u8g2.drawGlyph(x, y, 0xe250);   //half
-        u8g2.drawGlyph(194, 12, 0xe254); //full
-
-        // u8x8.setCursor(0, 1);
-        // /* Latitude */
-        // u8x8.print("a" + String(gps.location.lat(), 4));
-        // /* Longitude */
-        // u8x8.print("o" + String(gps.location.lng(), 4));
-
-        // u8x8.setCursor(0, 2);
-        // /* Satellites */
-        // u8x8.print("S" + String(gps.satellites.value()));
-        // u8x8.print("op" + String(gps.hdop.hdop(), 1));
-        // u8x8.print("sp" + String(gps.speed.kmph(), 0));
-
-        // u8x8.setCursor(0, 3);
-        // sprintf(PrinterStr, "%016d", i);
-        // u8x8.print(PrinterStr);
-        u8g2.sendBuffer(); //更新至屏幕
-
-        fpsOLED = 1000.0 / (millis() - lastOLEDrefreshTime);
-        Serial.println(fpsOLED);
-        lastOLEDrefreshTime = millis();
+        else
+        {
+            char bufferStr[8];
+            u8g2.setFont(u8g2_font_5x7_tr);
+            u8g2.drawStr(0, 6, "UPDATING");
+            u8g2.drawStr(0, 13, "Progress:");
+            sprintf(bufferStr, "%04d", OTAprogress);
+            u8g2.drawStr(40, 13, bufferStr);
+            u8g2.drawStr(0, 20, "total:");
+            sprintf(bufferStr, "%04d", OTAtotal);
+            u8g2.drawStr(40, 20, bufferStr);
+            u8g2.sendBuffer(); //更新至屏幕
+        }
 
         vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
     }
@@ -365,7 +405,7 @@ void getGPSData(void *pvParameters) // GPS刷新任务
         //     gps.encode(Serial2.read());
     }
 }
-void handleOTAtask(void *pvParameters) // GPS刷新任务
+void handleOTAtask(void *pvParameters) // OTA更新任务
 
 {
     (void)pvParameters;
@@ -376,7 +416,7 @@ void handleOTAtask(void *pvParameters) // GPS刷新任务
     }
 }
 
-void updateRevvingI(void *pvParameters) // GPS刷新任务
+void updateRevving(void *pvParameters) // demo数据刷新
 {
     (void)pvParameters;
     TickType_t xLastWakeTime;
@@ -390,7 +430,27 @@ void updateRevvingI(void *pvParameters) // GPS刷新任务
         // 等待下一个周期。
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
         /* 获取一个新的传感器事件 */
-        i++;
+        RPM++;
+        SPD++;
+
+        SUS_LF += 22;
+        SUS_RF += 41;
+        SUS_LR += 35;
+        SUS_RR += 19;
+
+        if (RPM > 3800)
+            RPM = 1700;
+        if (SPD > 60)
+            SPD = 0;
+
+        if (SUS_LF > 4094)
+            SUS_LF = 0;
+        if (SUS_RF > 4096)
+            SUS_RF = 0;
+        if (SUS_LR > 4095)
+            SUS_LR = 0;
+        if (SUS_RR > 4090)
+            SUS_RR = 0;
 
         vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
     }

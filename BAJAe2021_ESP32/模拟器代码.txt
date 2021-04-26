@@ -17,14 +17,15 @@ void draw(U8G2 u8g2)
 
     u8g2.drawFrame(0, 10, 53, 53);
 
-    u8g2.drawFrame(85, 1, 10, 30);
-    u8g2.drawFrame(85, 33, 10, 30);
+    u8g2.drawFrame(87, 0, 7, 40);//LF
+    u8g2.drawFrame(75, 23, 10, 40);//LR
+    u8g2.drawFrame(158, 0, 7, 40);//RF
+    u8g2.drawFrame(167, 23, 10, 40);//RR
 
     u8g2.setFont(u8g2_font_7Segments_26x42);
     u8g2.drawStr(98, 45, "50");
 
-    u8g2.drawFrame(158, 1, 10, 30);
-    u8g2.drawFrame(158, 33, 10, 30);
+
     u8g2.setFont(u8g2_font_profont22);
     u8g2.drawStr(210, 15, "3750");
 
@@ -49,4 +50,14 @@ void draw(U8G2 u8g2)
     u8g2.drawCircle(26, 37, 13, U8G2_DRAW_ALL); //小圈，圆的
     //
     u8g2.drawBox(25, 36, 3, 3); //小圈，圆的
+
+    u8g2.drawBox(87, 40-counter%40, 7, counter%40);//LF
+    u8g2.drawBox(75, 64-counter%40, 10, counter%40);//LR
+    u8g2.drawBox(158, 40-counter%40, 7, counter%40);//RF
+    u8g2.drawBox(167, 64-counter%40, 10, counter%40);//RR
+
+
+
+
+
 }
