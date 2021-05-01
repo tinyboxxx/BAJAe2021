@@ -3,12 +3,10 @@
 
 #include <Arduino.h>
 #include <U8g2lib.h>
-
 #include <SPI.h>
 #include <Wire.h>
 
 // BNO055姿态 ====================================
-
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BNO055.h>
 #include <utility/imumaths.h>
@@ -20,42 +18,46 @@ bool BNO055isOK = 1;
 #include <TinyGPS++.h> // Tiny GPS Plus Library
 
 // I2C ====================================
-
 #define I2C_SDA 2
 #define I2C_SCL 15
 
 // WIFIOTA ====================================
-
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
-
 const char *ssid = "TiWifi";
 const char *password = "";
 
-// 定义任务 ====================================
+// LED灯条 =====================================
+#include <FastLED.h>
+#define LED_DATA_PIN 26
+#define LED_CLOCK_PIN 27
+#define NUM_LEDS 10
+CRGB leds[NUM_LEDS];// Define the array of leds
 
+// 定义任务 ====================================
 void PrintToOLED(void *pvParameters);
 void getBNO055Data(void *pvParameters);
 void getGPSData(void *pvParameters);
+void handleOTAtask(void *pvParameters);
+void updateRevving(void *pvParameters);
+void UpdateLEDstrip(void *pvParameters);
 
 // OLED屏幕 ====================================
-
 U8G2_SSD1322_NHD_256X64_F_4W_HW_SPI u8g2(U8G2_R0, /* cs=*/5, /* dc=*/12, /* reset=*/14); // Enable U8G2_16BIT in u8g2.h
 
 // GPS ====================================
-
 // #define Serial2_RXPIN 16           //to GPS TX
 // #define Serial2_TXPIN 17           //to GPS RX
 // const float Home_LAT = 33.205288;  // Your Home Latitude
 // const float Home_LNG = -96.951125; // Your Home Longitude
 // int incomingByte;
 // TinyGPSPlus gps; // Create an Instance of the TinyGPS++ object called gps
+
 unsigned int i = 0;
 unsigned int fpsOLED = 0;
 long lastOLEDrefreshTime = 0;
-
 int fpsGPS = 0;
 
 bool isOTAing = 0;
@@ -66,7 +68,7 @@ unsigned int OTAtotal = 0;
 unsigned int RPM = 0;
 unsigned int SPD = 0; //千米每小时
 
-unsigned int SUS_LF = 0;//减振器，ADC值，0->4096
+unsigned int SUS_LF = 0; //减振器，ADC值，0->4096
 unsigned int SUS_RF = 0;
 unsigned int SUS_LR = 0;
 unsigned int SUS_RR = 0;
@@ -83,7 +85,7 @@ void setup(void)
 
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
-    while (WiFi.waitForConnectResult() != WL_CONNECTED)
+    if (WiFi.waitForConnectResult() != WL_CONNECTED)
     {
         Serial.println("Connection Failed! Rebooting...");
         // delay(5000);
@@ -162,6 +164,9 @@ void setup(void)
 
     u8g2.begin();
 
+    // LED =========================================
+    FastLED.addLeds<APA102, LED_DATA_PIN, LED_CLOCK_PIN, RGB>(leds, NUM_LEDS);
+
     // 任务定义 ====================================
 
     xTaskCreate(
@@ -204,6 +209,14 @@ void setup(void)
         512 // 可以通过阅读Stack Highwater来检查和调整此堆栈大小
         ,
         NULL, 0 // 优先级，其中3（configMAX_PRIORITIES-1）为最高，0为最低。
+        ,
+        NULL);
+    xTaskCreate(
+        UpdateLEDstrip, "UpdateLEDstrip" // 为了方便人读，取的名字
+        ,
+        512 // 可以通过阅读Stack Highwater来检查和调整此堆栈大小
+        ,
+        NULL, 1 // 优先级，其中3（configMAX_PRIORITIES-1）为最高，0为最低。
         ,
         NULL);
 }
@@ -314,7 +327,7 @@ void PrintToOLED(void *pvParameters) // OLED 刷新任务
 
             drawSignal(u8g2, 180, 12, 4); //满格信号，三格
 
-            drawGForce(0, 0);
+            // drawGForce(0, 0);
 
             u8g2.setFont(u8g2_font_siji_t_6x10);
             // u8g2.drawGlyph(x, y, 0xe242);   //empty
@@ -405,6 +418,7 @@ void getGPSData(void *pvParameters) // GPS刷新任务
         //     gps.encode(Serial2.read());
     }
 }
+
 void handleOTAtask(void *pvParameters) // OTA更新任务
 
 {
@@ -451,6 +465,50 @@ void updateRevving(void *pvParameters) // demo数据刷新
             SUS_LR = 0;
         if (SUS_RR > 4090)
             SUS_RR = 0;
+
+        vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
+    }
+}
+
+void UpdateLEDstrip(void *pvParameters) // LED灯条刷新任务
+{
+    (void)pvParameters;
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = 5000;
+
+    // 用当前时间初始化xLastWakeTime变量。
+    xLastWakeTime = xTaskGetTickCount();
+
+    for (;;)
+    {
+        // 等待下一个周期。
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        // Turn the LED on, then pause
+        for (int i = 0; i < NUM_LEDS; i++)
+        {
+            leds[i] = CRGB::Red;
+        }
+        FastLED.show();
+        vTaskDelay(500);
+        for (int i = 0; i < NUM_LEDS; i++)
+        {
+            leds[i] = CRGB::Green;
+        }
+        FastLED.show();
+        vTaskDelay(500);
+        for (int i = 0; i < NUM_LEDS; i++)
+        {
+            leds[i] = CRGB::Blue;
+        }
+        FastLED.show();
+        vTaskDelay(500);
+        // Now turn the LED off, then pause
+        for (int i = 0; i < NUM_LEDS; i++)
+        {
+            leds[i] = CRGB::Black;
+        }
+        FastLED.show();
+        vTaskDelay(500);
 
         vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
     }
