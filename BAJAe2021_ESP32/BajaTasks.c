@@ -1,3 +1,4 @@
+//本文件为后部Tasks任务具体调用的函数。
 
 void drawSignal(U8G2 u8g2, uint8_t x, uint8_t y, uint8_t strength)
 {
@@ -9,7 +10,6 @@ void drawSignal(U8G2 u8g2, uint8_t x, uint8_t y, uint8_t strength)
 
 void drawGForce() //x:-100~100
 {
-
     u8g2.drawFrame(0, 11, 52, 52); //GForce
     //长宽都是53，一半的长度是26
     //X:0->26->52
@@ -44,9 +44,12 @@ void drawSuspension() //减振器信息绘制任务
     u8g2.drawBox(167, 64 - hRR, 10, hRR); //RR
 }
 
-
 void PrintToOLED(void *pvParameters) // OLED 刷新任务
 {
+
+    //所有字体列表：https://github.com/olikraus/u8g2/wiki/fntlistall
+    //模拟器：https://p3dt.net/u8g2sim/
+
     (void)pvParameters;
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 40;
@@ -270,4 +273,3 @@ void UpdateLEDstrip(void *pvParameters) // LED灯条刷新任务
         vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
     }
 }
-

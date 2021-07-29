@@ -18,9 +18,9 @@
 | 转速       |               | Pulse   | IO32 |
 | 时速       |               | Pulse   | IO33 |
 | GPS模块    | ATGM336H      | serial1 | TX22,RX21 |
-| 姿态传感器 | BNO055/MPU6050 | i2c     |
-| 电池电量   | MAX17043      | i2c     |
-| RTC时间    | ds3231/ds1307 | i2c     |
+| 姿态传感器 | BNO055/MPU6050 | i2c     | |
+| 电池电量   | MAX17043      | i2c     | |
+| RTC时间    | ds3231/ds1307 | i2c     | |
 | 屏幕       | SSD1322       | SPI     | CS_IO5 |
 | 灯条       | APA102C       | Digital | SDI_26,CKI_27 |
 | SD卡       |               | SPI     | CS_25 |
