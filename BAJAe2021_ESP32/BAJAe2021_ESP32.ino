@@ -1,10 +1,11 @@
+// todo: 切换到adafruit ds3231、测试GPS
+
 #include "BajaHeaders.h" //引用和初始化部分。
 
 // Stats 状态变量 ====================================
 
 bool setLEDtoSpeed = false; // 1:SPEED 0:RPM
 bool enableFakeData = true; //开启假数据
-
 
 unsigned int fpsOLED = 0;
 long lastOLEDrefreshTime = 0;
@@ -14,6 +15,9 @@ bool wifi_connected = false;
 bool isOTAing = false;
 unsigned int OTAprogress = 0;
 unsigned int OTAtotal = 0;
+
+bool debug_Using_USB = true;
+bool debug_Using_LORA = true;
 
 //行车数据变量=============================
 unsigned int RPM = 0;
@@ -27,7 +31,6 @@ unsigned int SUS_RR = 0;
 float GFx = 0;
 float GFy = 0;
 
-
 void setup(void)
 {
   pinMode(32, INPUT_PULLUP); //rpm 引脚
@@ -36,6 +39,15 @@ void setup(void)
   initPulseCounter_SPD();
   Serial.begin(115200);
   Serial.println("Booting");
+
+  cli.setOnError(errorCallback); // Set error Callback
+  // Create the cowsay command with callback function
+  // A single argument command has only one argument
+  // in which the complete string is saved, that comes after the command name.
+  // Spaces, which usually seperate arguments, will be ignored and any value will be accespted as valid.
+  // For example: cowsay "Hello there!"
+  //              cowsays Hello there!
+  updatetime = cli.addSingleArgCmd("updatetime", update_time_to_given_time);
 
   // WIFIOTA ====================================
 
@@ -93,9 +105,31 @@ void setup(void)
 
   // I2C ====================================
   Wire.begin(I2C_SDA, I2C_SCL);
+  Wire.setClock(100000);
+  // TIME ====================================
+
+  // BTY
+  lipo.enableDebugging(); // Uncomment this line to enable helpful debug messages on Serial
+
+  // Set up the MAX17043 LiPo fuel gauge:
+  if (lipo.begin() == false) // Connect to the MAX17043 using the default wire port
+  {
+    Serial.println(F("MAX17043 not detected. Please check wiring"));
+  }
+
+  // Quick start restarts the MAX17043 in hopes of getting a more accurate
+  // guess for the SOC.
+  lipo.quickStart();
+
+  // We can set an interrupt to alert when the battery SoC gets too low.
+  // We can alert at anywhere between 1% - 32%:
+  lipo.setThreshold(20); // Set alert threshold to 20%.
 
   // GPS ====================================
+  Serial1.begin(9600, SERIAL_8N1, Serial1_RXPIN, Serial1_TXPIN); // GPS com
+  // LORA ====================================
   Serial2.begin(9600, SERIAL_8N1, Serial2_RXPIN, Serial2_TXPIN); // GPS com
+  Serial2.println("hi???");
 
   // BNO055姿态 ====================================
   if (!bno.begin()) // 初始化传感器
@@ -123,28 +157,54 @@ void setup(void)
   //     NULL);
 
   xTaskCreatePinnedToCore(PrintToOLED, "PrintToOLED" // 屏幕刷新任务
-              ,
-              30000, NULL, 2, NULL,1);
+                          ,
+                          30000, NULL, 2, NULL, 1);
   xTaskCreatePinnedToCore(getGPSData, "getGPSData" // GPS数据更新任务
-              ,
-              16384, NULL, 0, NULL,1);
+                          ,
+                          16384, NULL, 0, NULL, 1);
   xTaskCreatePinnedToCore(handleOTAtask, "handleOTAtask" // 在线更新固件任务
-              ,
-              2048, NULL, 3, NULL,1);
+                          ,
+                          2048, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(updateRevving, "updateRevving" // 演示模式任务
-              ,
-              1024, NULL, 0, NULL,1);
+                          ,
+                          1024, NULL, 0, NULL, 1);
   xTaskCreatePinnedToCore(UpdateLEDstrip, "UpdateLEDstrip" // 灯条更新任务
-              ,
-              2048, NULL, 1, NULL,1);
+                          ,
+                          2048, NULL, 1, NULL, 1);
 
   xTaskCreatePinnedToCore(updateSPDdata, "updateSPDdata" // 测速任务
-              ,
-              4000, NULL, 1, NULL,1);
+                          ,
+                          4000, NULL, 1, NULL, 1);
+  // xTaskCreatePinnedToCore(updateDateTime, "updateDateTime" // 时间更新任务
+  //                         ,
+  //                         2000, NULL, 1, NULL, 1);
 }
 
 void loop(void)
 {
+  if (Serial2.available())
+  {
+    // Read out string from the serial monitor
+    String input = Serial2.readStringUntil('\n');
+
+    // Parse the user input into the CLI
+    cli.parse(input);
+  }
+
+  if (cli.errored())
+  {
+    CommandError cmdError = cli.getError();
+
+    Serial2.print("ERROR: ");
+    Serial2.println(cmdError.toString());
+
+    if (cmdError.hasCommand())
+    {
+      Serial2.print("Did you mean \"");
+      Serial2.print(cmdError.getCommand().toString());
+      Serial2.println("\"?");
+    }
+  }
   vTaskDelay(1); //延时，或许以后删掉
 }
 

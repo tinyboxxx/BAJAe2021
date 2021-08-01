@@ -11,9 +11,10 @@
 #define DEBUG_PRINT(x)
 #endif
 #ifdef DEBUG
-#define DEBUG_PRINTLN(x) \
-    DEBUG_PRINT(x);      \
-    Serial.print("\n");
+#define DEBUG_PRINTLN(x)     \
+    Serial.print(F(#x ":")); \
+    Serial.print(x);         \
+    Serial.println("");
 #else
 #define DEBUG_PRINTLN(x)
 #endif
@@ -68,90 +69,159 @@ void getGPSData(void *pvParameters);
 void handleOTAtask(void *pvParameters);
 void updateRevving(void *pvParameters);
 void UpdateLEDstrip(void *pvParameters);
-void updateSPDdata(void *pvParameters); // 测速任务
-void writeToSDCard(void *pvParameters); // SD卡写入任务
+void updateSPDdata(void *pvParameters);  // 测速任务
+void writeToSDCard(void *pvParameters);  // SD卡写入任务
+void updateDateTime(void *pvParameters); // SD卡写入任务
 
 // OLED屏幕 ====================================
 U8G2_SSD1322_NHD_256X64_F_4W_HW_SPI u8g2(U8G2_R0, /* cs=*/5, /* dc=*/12, /* reset=*/14); // Enable U8G2_16BIT in u8g2.h
 
 // GPS ====================================
-#define Serial2_RXPIN 16           //to GPS TX
-#define Serial2_TXPIN 17           //to GPS RX
+#define Serial1_RXPIN 21           //to GPS TX
+#define Serial1_TXPIN 22           //to GPS RX
 const float Home_LAT = 33.205288;  // Your Home Latitude
 const float Home_LNG = -96.951125; // Your Home Longitude
 int incomingByte;
 TinyGPSPlus gps; // 创建一个名为gps的TinyGPS++对象的实例。
 
-// TIME ====================================
-#include <DS3231.h>
-
-DS3231 Clock;
-
-byte Year;
-byte Month;
-byte Date;
-byte DoW;
-byte Hour;
-byte Minute;
-byte Second;
-void GetDateStuff(byte &Year, byte &Month, byte &Day, byte &DoW,
-                  byte &Hour, byte &Minute, byte &Second)
+static void printFloat(float val, bool valid, int len, int prec)
 {
-    // Call this if you notice something coming in on
-    // the serial port. The stuff coming in should be in
-    // the order YYMMDDwHHMMSS, with an 'x' at the end.
-    boolean GotString = false;
-    char InChar;
-    byte Temp1, Temp2;
-    char InString[20];
-
-    byte j = 0;
-    while (!GotString)
+    if (!valid)
     {
-        if (Serial.available())
-        {
-            InChar = Serial.read();
-            InString[j] = InChar;
-            j += 1;
-            if (InChar == 'x')
-            {
-                GotString = true;
-            }
-        }
+        while (len-- > 1)
+            Serial.print('*');
+        Serial.print(' ');
     }
-    Serial.println(InString);
-    // Read Year first
-    Temp1 = (byte)InString[0] - 48;
-    Temp2 = (byte)InString[1] - 48;
-    Year = Temp1 * 10 + Temp2;
-    // now month
-    Temp1 = (byte)InString[2] - 48;
-    Temp2 = (byte)InString[3] - 48;
-    Month = Temp1 * 10 + Temp2;
-    // now date
-    Temp1 = (byte)InString[4] - 48;
-    Temp2 = (byte)InString[5] - 48;
-    Day = Temp1 * 10 + Temp2;
-    // now Day of Week
-    DoW = (byte)InString[6] - 48;
-    // now Hour
-    Temp1 = (byte)InString[7] - 48;
-    Temp2 = (byte)InString[8] - 48;
-    Hour = Temp1 * 10 + Temp2;
-    // now Minute
-    Temp1 = (byte)InString[9] - 48;
-    Temp2 = (byte)InString[10] - 48;
-    Minute = Temp1 * 10 + Temp2;
-    // now Second
-    Temp1 = (byte)InString[11] - 48;
-    Temp2 = (byte)InString[12] - 48;
-    Second = Temp1 * 10 + Temp2;
+    else
+    {
+        Serial.print(val, prec);
+        int vi = abs((int)val);
+        int flen = prec + (val < 0.0 ? 2 : 1); // . and -
+        flen += vi >= 1000 ? 4 : vi >= 100 ? 3
+                             : vi >= 10    ? 2
+                                           : 1;
+        for (int i = flen; i < len; ++i)
+            Serial.print(' ');
+    }
+    vTaskDelay(0);
 }
+
+static void printInt(unsigned long val, bool valid, int len)
+{
+    char sz[32] = "*****************";
+    if (valid)
+        sprintf(sz, "%ld", val);
+    sz[len] = 0;
+    for (int i = strlen(sz); i < len; ++i)
+        sz[i] = ' ';
+    if (len > 0)
+        sz[len - 1] = ' ';
+    Serial.print(sz);
+    vTaskDelay(0);
+}
+
+static void printDateTime(TinyGPSDate &d, TinyGPSTime &t)
+{
+    if (!d.isValid())
+    {
+        Serial.print(F("********** "));
+    }
+    else
+    {
+        char sz[32];
+        sprintf(sz, "%02d/%02d/%02d ", d.month(), d.day(), d.year());
+        Serial.print(sz);
+    }
+
+    if (!t.isValid())
+    {
+        Serial.print(F("******** "));
+    }
+    else
+    {
+        char sz[32];
+        sprintf(sz, "%02d:%02d:%02d ", t.hour(), t.minute(), t.second());
+        Serial.print(sz);
+    }
+
+    printInt(d.age(), d.isValid(), 5);
+    vTaskDelay(0);
+}
+
+static void printStr(const char *str, int len)
+{
+    int slen = strlen(str);
+    for (int i = 0; i < len; ++i)
+        Serial.print(i < slen ? str[i] : ' ');
+    vTaskDelay(0);
+}
+
+// TIME ====================================
+
+// // Date and time functions using a DS3231 RTC connected via I2C and Wire lib
+// #include <ErriezDS3231.h>
+
+// // Create RTC object
+// ErriezDS3231 rtc;
+
+// #define DATE_STRING_SHORT           3
+
+// // Month names in flash
+// const char monthNames_P[] PROGMEM = "JanFebMarAprMayJunJulAugSepOctNovDec";
+
+// // Day of the week names in flash
+// const char dayNames_P[] PROGMEM= "SunMonTueWedThuFriSat";
+
+//BTRY ====================================
+#include <SparkFun_MAX1704x_Fuel_Gauge_Arduino_Library.h>
+// Click here to get the library: http://librarymanager/All#SparkFun_MAX1704x_Fuel_Gauge_Arduino_Library
+
+// SFE_MAX1704X lipo; // Defaults to the MAX17043
+SFE_MAX1704X lipo(MAX1704X_MAX17043); // Create a MAX17043
+
+double voltage = 0; // Variable to keep track of LiPo voltage
+double soc = 0;     // Variable to keep track of LiPo state-of-charge (SOC)
+bool alert;         // Variable to keep track of whether alert has been triggered
 
 // 函数的头文件
 long map(long x, long in_min, long in_max, long out_min, long out_max);
 int intMapping(int x, int in_min, int in_max, int out_min, int out_max);
 float floatMapping(float x, float in_min, float in_max, float out_min, float out_max);
+
+// LORA ====================================
+#define Serial2_RXPIN 16 //to LORA TX
+#define Serial2_TXPIN 17 //to LORA RX
+
+// CLI ====================================
+// Inlcude Library
+#include <SimpleCLI.h>
+
+// Create CLI Object
+SimpleCLI cli;
+
+// Commands
+Command updatetime;
+
+// Callback function for cowsay command
+void update_time_to_given_time(cmd *c)
+{
+}
+
+// Callback in case of an error
+void errorCallback(cmd_error *e)
+{
+    CommandError cmdError(e); // Create wrapper object
+
+    Serial2.print("ERROR: ");
+    Serial2.println(cmdError.toString());
+
+    if (cmdError.hasCommand())
+    {
+        Serial2.print("Did you mean \"");
+        Serial2.print(cmdError.getCommand().toString());
+        Serial2.println("\"?");
+    }
+}
 
 // 频率计1
 int lastmSec = 0;

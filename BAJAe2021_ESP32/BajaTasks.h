@@ -41,27 +41,6 @@ void drawGForce() //x:-100~100
     u8g2.drawBox(GFx_OLED + 25, GFy_OLED + 36, 3, 3); //指示点 初始位置25,36,3,3
 }
 
-void drawSuspension() //减振器信息绘制任务
-{
-    //4096->40
-    //=x* 0.009765625
-
-    u8g2.drawFrame(87, 0, 7, 40);    //LF
-    u8g2.drawFrame(75, 23, 10, 40);  //LR
-    u8g2.drawFrame(158, 0, 7, 40);   //RF
-    u8g2.drawFrame(167, 23, 10, 40); //RR
-
-    int hLF = SUS_LF * 0.009765625;
-    int hRF = SUS_RF * 0.009765625;
-    int hLR = SUS_LR * 0.009765625;
-    int hRR = SUS_RR * 0.009765625;
-
-    u8g2.drawBox(87, 40 - hLF, 7, hLF);   //LF full
-    u8g2.drawBox(75, 64 - hLR, 10, hLR);  //LR
-    u8g2.drawBox(158, 40 - hRF, 7, hRF);  //RF
-    u8g2.drawBox(167, 64 - hRR, 10, hRR); //RR
-}
-
 void PrintToOLED(void *pvParameters) // OLED 刷新任务
 {
 
@@ -70,7 +49,7 @@ void PrintToOLED(void *pvParameters) // OLED 刷新任务
 
     (void)pvParameters;
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = 200;
+    const TickType_t xFrequency = 100;
     //设置为100时，大约为10fps
     //设置为16时，大约48fps
     //40约为40fps
@@ -122,12 +101,37 @@ void PrintToOLED(void *pvParameters) // OLED 刷新任务
             if (wifi_connected)
                 drawSignal(u8g2, 180, 12, 4); //满格信号，三格
 
+            u8g2.setFont(u8g2_font_6x10_mr);
+            u8g2.setCursor(180, 35);
+            u8g2.print(gps.satellites.value());
+            u8g2.setCursor(180, 44);
+            u8g2.print(gps.hdop.hdop());
+            u8g2.setCursor(180, 53);
+            u8g2.print(gps.speed.kmph());
+
+            voltage = lipo.getVoltage();
+            // lipo.getSOC() returns the estimated state of charge (e.g. 79%)
+            soc = lipo.getSOC();
+            // lipo.getAlert() returns a 0 or 1 (0=alert not triggered)
+            alert = lipo.getAlert();
+
+            // Print the variables:
+            Serial.print("Voltage: ");
+            Serial.print(voltage); // Print the battery voltage
+            Serial.println(" V");
+
+            Serial.print("Percentage: ");
+            Serial.print(soc); // Print the battery state of charge
+            Serial.println(" %");
+
+            Serial.print("Alert: ");
+            Serial.println(alert);
+            Serial.println();
+
             u8g2.setFont(u8g2_font_siji_t_6x10);
             // u8g2.drawGlyph(x, y, 0xe242);   //empty
             // u8g2.drawGlyph(x, y, 0xe250);   //half
             u8g2.drawGlyph(194, 12, 0xe254); //full
-
-            // drawSuspension();
 
             fpsOLED = 1000.0 / (millis() - lastOLEDrefreshTime);
             lastOLEDrefreshTime = millis();
@@ -204,29 +208,6 @@ void UpdateLEDstrip(void *pvParameters) // LED灯条刷新任务
     }
 }
 
-// void getBNO055Data(void *pvParameters) // BNO055姿态任务
-// {
-//     (void)pvParameters;
-//     TickType_t xLastWakeTime;
-//     const TickType_t xFrequency = 100;
-
-//     // 用当前时间初始化xLastWakeTime变量。
-//     xLastWakeTime = xTaskGetTickCount();
-
-//     for (;;)
-//     {
-//         // 等待下一个周期。
-//         vTaskDelayUntil(&xLastWakeTime, xFrequency);
-//         /* 获取一个新的传感器事件 */
-//         if (BNO055isOK)
-//         {
-
-//         }
-
-//         vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
-//     }
-// }
-
 void getGPSData(void *pvParameters) // GPS刷新任务
 {
     (void)pvParameters;
@@ -242,8 +223,20 @@ void getGPSData(void *pvParameters) // GPS刷新任务
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
         vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
         /* Get GPS data */
-        while (Serial2.available())
-            gps.encode(Serial2.read());
+        while (Serial1.available())
+            gps.encode(Serial1.read());
+
+        if (gps.satellites.isValid())
+        {
+            DEBUG_PRINTLN(gps.satellites.value())
+        }
+        if (gps.hdop.isValid())
+        {
+            DEBUG_PRINTLN(gps.hdop.hdop())
+        }
+
+        // printInt(gps.satellites.value(), , 5);
+        // printFloat(gps.hdop.hdop(), gps.hdop.isValid(), 6, 1);
     }
 }
 
@@ -337,7 +330,7 @@ void updateSPDdata(void *pvParameters) // 测速任务
         // DEBUG_PRINTLN(digitalRead(33))
         pcnt_get_counter_value(PCNT_FREQ_UNIT_SPD, &PulseCounter_SPD); // get pulse counter value - maximum value is 16 bits
         pcnt_get_counter_value(PCNT_FREQ_UNIT_RPM, &PulseCounter_RPM); // get pulse counter value - maximum value is 16 bits
-        DEBUG_PRINTLN(PulseCounter_SPD)
+        // DEBUG_PRINTLN(PulseCounter_SPD)
 
         SPD_freq_in_mHz = (PulseCounter_SPD - lastPulseCounter_SPD) / (millis() - lastmSec);
         RPM_freq_in_mHz = (PulseCounter_RPM - lastPulseCounter_RPM) / (millis() - lastmSec);
@@ -347,12 +340,79 @@ void updateSPDdata(void *pvParameters) // 测速任务
 
         SPD = SPD_freq_in_mHz * SPD_Calc_Factor;
         RPM = RPM_freq_in_mHz * RPM_Calc_Factor;
-        DEBUG_PRINTLN(SPD)
+        // DEBUG_PRINTLN(SPD)
 
         vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
     }
 }
+/*
+void updateDateTime(void *pvParameters) // 测速任务
+{
+    (void)pvParameters;
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = 2000;
 
+    // 用当前时间初始化xLastWakeTime变量。
+    xLastWakeTime = xTaskGetTickCount();
+
+    for (;;)
+    {
+        // 等待下一个周期
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+
+        char name[DATE_STRING_SHORT + 1];
+        uint8_t hour;
+        uint8_t min;
+        uint8_t sec;
+        uint8_t mday;
+        uint8_t mon;
+        uint16_t year;
+        uint8_t wday;
+
+        // Read date/time
+        if (!rtc.getDateTime(&hour, &min, &sec, &mday, &mon, &year, &wday))
+        {
+            Serial.println(F("Read date/time failed"));
+        }
+
+        // Print day week
+        strncpy_P(name, &(dayNames_P[wday * DATE_STRING_SHORT]), DATE_STRING_SHORT);
+        name[DATE_STRING_SHORT] = '\0';
+        Serial.print(name);
+        Serial.print(F(" "));
+
+        // Print month
+        strncpy_P(name, &(monthNames_P[(mon - 1) * DATE_STRING_SHORT]), DATE_STRING_SHORT);
+        name[DATE_STRING_SHORT] = '\0';
+        Serial.print(name);
+        Serial.print(F(" "));
+
+        // Print day month
+        Serial.print(mday);
+        Serial.print(F(" "));
+
+        // Print time
+        Serial.print(hour);
+        Serial.print(F(":"));
+        if (min < 10)
+        {
+            Serial.print(F("0"));
+        }
+        Serial.print(min);
+        Serial.print(F(":"));
+        if (sec < 10)
+        {
+            Serial.print(F("0"));
+        }
+        Serial.print(sec);
+        Serial.print(F(" "));
+
+        // Print year
+        Serial.println(year);
+        vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
+    }
+}
+*/
 long map(long x, long in_min, long in_max, long out_min, long out_max)
 {
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
@@ -366,22 +426,4 @@ int intMapping(int x, int in_min, int in_max, int out_min, int out_max)
 float floatMapping(float x, float in_min, float in_max, float out_min, float out_max)
 {
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
-
-void updatetimetonow()
-{
-    if (Serial.available())
-    {
-        GetDateStuff(Year, Month, Date, DoW, Hour, Minute, Second);
-
-        Clock.setClockMode(false); // set to 24h
-
-        Clock.setYear(Year);
-        Clock.setMonth(Month);
-        Clock.setDate(Date);
-        Clock.setDoW(DoW);
-        Clock.setHour(Hour);
-        Clock.setMinute(Minute);
-        Clock.setSecond(Second);
-    }
 }
