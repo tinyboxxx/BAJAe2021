@@ -30,7 +30,6 @@
 #include <utility/imumaths.h>
 Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x29);
 sensors_event_t linearAccelData; //BNO event
-bool BNO055isOK = true;
 
 // GPS ====================================
 #include <TinyGPS++.h> // Tiny GPS Plus Library
@@ -61,17 +60,6 @@ CRGB leds[NUM_LEDS]; // 定义LED阵列
 int nShiftlightPos = 0;
 int RPM_Green_Before = 3;
 int RPM_Red_After = 8;
-
-// 定义任务 ====================================
-void PrintToOLED(void *pvParameters);
-// void getBNO055Data(void *pvParameters);
-void getGPSData(void *pvParameters);
-void handleOTAtask(void *pvParameters);
-void updateRevving(void *pvParameters);
-void UpdateLEDstrip(void *pvParameters);
-void updateSPDdata(void *pvParameters);  // 测速任务
-void writeToSDCard(void *pvParameters);  // SD卡写入任务
-void updateDateTime(void *pvParameters); // SD卡写入任务
 
 // OLED屏幕 ====================================
 U8G2_SSD1322_NHD_256X64_F_4W_HW_SPI u8g2(U8G2_R0, /* cs=*/5, /* dc=*/12, /* reset=*/14); // Enable U8G2_16BIT in u8g2.h
@@ -157,20 +145,8 @@ static void printStr(const char *str, int len)
 }
 
 // TIME ====================================
-
-// // Date and time functions using a DS3231 RTC connected via I2C and Wire lib
-// #include <ErriezDS3231.h>
-
-// // Create RTC object
-// ErriezDS3231 rtc;
-
-// #define DATE_STRING_SHORT           3
-
-// // Month names in flash
-// const char monthNames_P[] PROGMEM = "JanFebMarAprMayJunJulAugSepOctNovDec";
-
-// // Day of the week names in flash
-// const char dayNames_P[] PROGMEM= "SunMonTueWedThuFriSat";
+#include <ErriezDS3231.h>
+ErriezDS3231 rtc;
 
 //BTRY ====================================
 #include <SparkFun_MAX1704x_Fuel_Gauge_Arduino_Library.h>
@@ -247,6 +223,41 @@ int RPM_Calc_Factor = 60000; //频率换算系数，计算方法为如下
 mhz*60*175.5522*1000 km/h = 10533132
 
 */
+
+// Stats 状态变量 ====================================
+
+bool setLEDtoSpeed = false; // 1:SPEED 0:RPM
+bool enableFakeData = true; //开启假数据
+
+unsigned int fpsOLED = 0;
+long lastOLEDrefreshTime = 0;
+int fpsGPS = 0;
+
+bool wifi_connected = false;
+bool isOTAing = false;
+unsigned int OTAprogress = 0;
+unsigned int OTAtotal = 0;
+
+bool debug_Using_USB = true;
+bool debug_Using_LORA = true;
+
+bool BNO055isOK = true;
+bool DS3231isOK = true;
+
+//行车数据变量=============================
+unsigned int RPM = 0;
+unsigned int SPD = 0; //千米每小时
+
+unsigned int SUS_LF = 0; //减振器，ADC值，0->4096
+unsigned int SUS_RF = 0;
+unsigned int SUS_LR = 0;
+unsigned int SUS_RR = 0;
+
+float GFx = 0;
+float GFy = 0;
+int GFx_OLED = 0;
+int GFy_OLED = 0;
+float GFx_OLED_ZoomLevel = 1.5;
 
 #include "driver/pcnt.h" // ESP32 library for pulse count
 // e.g. stored in following path C:\Users\User\Documents\Arduino\hardware\arduino-esp32-master\tools\sdk\include\driver\driver\pcnt.h
