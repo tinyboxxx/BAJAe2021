@@ -32,7 +32,7 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
 
             u8g2.setFont(u8g2_font_5x7_tr);
             char PrinterStr[20];
-            sprintf(PrinterStr, "X%04.0f Y%04.0f", GFx, GFy);
+            sprintf(PrinterStr, "X%04.1f Y%04.1f", GFx, GFy);
             u8g2.drawStr(0, 6, PrinterStr);
             u8g2.drawFrame(0, 11, 53, 53); //GForce
             //长宽都是53，一半的长度是26
@@ -57,65 +57,55 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             u8g2.drawBox(GFx_OLED + 25, GFy_OLED + 36, 3, 3); //指示点 初始位置25,36,3,3
 
             char bufferStr2[2];
-            sprintf(bufferStr2, "%02d", SPD);
-
+            if (gps.hdop.hdop() <= 1.3)
+            {
+                sprintf(bufferStr2, "%02d", gps.speed.kmph());
+            }
+            else
+            {
+                sprintf(bufferStr2, "%02d", SPD);
+            }
             u8g2.setFont(u8g2_font_logisoso42_tn);
             u8g2.drawStr(98, 45, bufferStr2); //SPD文字显示
 
             u8g2.setFont(u8g2_font_logisoso18_tn);
-
             char bufferStr4[4];
             sprintf(bufferStr4, "%04d", RPM);
-
             u8g2.drawStr(210, 18, bufferStr4); //RPM文字显示
 
             u8g2.setFont(u8g2_font_6x10_mr);
             u8g2.drawStr(222, 25, "RPM");
 
             u8g2.setFont(u8g2_font_6x10_mr); //日期时间显示
-            u8g2.drawStr(97, 55, "2021-04-24");
-            u8g2.drawStr(103, 64, "18:05:05");
+
+            u8g2.setCursor(97, 55);
+            u8g2.print(&timeinfo, "%F");
+            u8g2.setCursor(103, 64);
+            u8g2.print(&timeinfo, "%T");
 
             if (wifi_connected)
                 drawSignal(u8g2, 180, 12, 4); //满格信号，三格
-
-            u8g2.setFont(u8g2_font_6x10_mr);
-            u8g2.setCursor(180, 35);
-            u8g2.print(gps.satellites.value());
-            u8g2.setCursor(180, 44);
-            u8g2.print(gps.hdop.hdop());
-            u8g2.setCursor(180, 53);
-            u8g2.print(gps.speed.kmph());
-
-            // voltage = lipo.getVoltage();
-            // // lipo.getSOC() returns the estimated state of charge (e.g. 79%)
-            // soc = lipo.getSOC();
-            // // lipo.getAlert() returns a 0 or 1 (0=alert not triggered)
-            // alert = lipo.getAlert();
-
-            // // Print the variables:
-            // Serial.print("Voltage: ");
-            // Serial.print(voltage); // Print the battery voltage
-            // Serial.println(" V");
-
-            // Serial.print("Percentage: ");
-            // Serial.print(soc); // Print the battery state of charge
-            // Serial.println(" %");
-
-            // Serial.print("Alert: ");
-            // Serial.println(alert);
-            // Serial.println();
 
             u8g2.setFont(u8g2_font_siji_t_6x10);
             // u8g2.drawGlyph(x, y, 0xe242);   //empty
             // u8g2.drawGlyph(x, y, 0xe250);   //half
             u8g2.drawGlyph(194, 12, 0xe254); //full
 
+            u8g2.setFont(u8g2_font_6x10_mr);
+            u8g2.setCursor(180, 28);
+            u8g2.print(gps.satellites.value());
+            u8g2.setCursor(180, 37);
+            u8g2.print(gps.speed.kmph());
+            u8g2.setCursor(180, 46);
+            u8g2.print(BTRYvoltage);
+            u8g2.setCursor(180, 55);
+            u8g2.print(BTRYpercentage);
+
             fpsOLED = 1000.0 / (millis() - lastOLEDrefreshTime);
             lastOLEDrefreshTime = millis();
             u8g2.setFont(u8g2_font_6x10_mr);
-            sprintf(bufferStr4, "%04d", fpsOLED);
-            u8g2.drawStr(150, 64, bufferStr4);
+            sprintf(bufferStr4, "%02d", fpsOLED);
+            u8g2.drawStr(180, 64, bufferStr4);
 
             u8g2.sendBuffer(); //更新至屏幕
 
@@ -174,31 +164,19 @@ void Task_GetGpsLora(void *pvParameters) // GPS刷新任务
     (void)pvParameters;
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 100;
-
-    // 用当前时间初始化xLastWakeTime变量。
-    xLastWakeTime = xTaskGetTickCount();
-
+    xLastWakeTime = xTaskGetTickCount(); // 用当前时间初始化xLastWakeTime变量。
     for (;;)
     {
-        // 等待下一个周期
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
-        /* Get GPS data */
+
+        vTaskDelayUntil(&xLastWakeTime, xFrequency); // 等待下一个周期
+        vTaskDelay(1);                               // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
         while (Serial1.available())
-            gps.encode(Serial1.read());
-
-        // printInt(gps.satellites.value(), , 5);
-        // printFloat(gps.hdop.hdop(), gps.hdop.isValid(), 6, 1);
-
+            gps.encode(Serial1.read()); /* Get GPS data */
         if (Serial2.available())
         {
-            // Read out string from the serial monitor
-            String input = Serial2.readStringUntil('\n');
-
-            // Parse the user input into the CLI
-            cli.parse(input);
+            String input = Serial2.readStringUntil('\n'); // Read out string from the serial monitor
+            cli.parse(input);                             // Parse the user input into the CLI
         }
-
         if (cli.errored())
         {
             CommandError cmdError = cli.getError();
@@ -220,29 +198,32 @@ void Task_UpdateData(void *pvParameters) // 测时速、转速、姿态、SD卡�
 {
     (void)pvParameters;
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = 1;
+    const TickType_t xFrequency = 8;
+    xLastWakeTime = xTaskGetTickCount(); // 用当前时间初始化xLastWakeTime变量。
 
-    // 用当前时间初始化xLastWakeTime变量。
-    xLastWakeTime = xTaskGetTickCount();
+    int lastmSec = 0;
+
+    int lastPulseCounter_SPD = 0;
+    float SPD_freq_in_mHz = 0.0;
+    float SPD_Calc_Factor = 105.3; //频率换算系数，计算方法见excel表
+
+    int lastPulseCounter_RPM = 0;
+    float RPM_freq_in_mHz = 0.0;
+    int RPM_Calc_Factor = 60000; //频率换算系数
 
     for (;;)
     {
-        // 等待下一个周期
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-
-        ArduinoOTA.handle(); //OTA必须运行的检测语句
+        vTaskDelayUntil(&xLastWakeTime, xFrequency); // 等待下一个周期
+        ArduinoOTA.handle();                         //OTA必须运行的检测语句
 
         pcnt_get_counter_value(PCNT_FREQ_UNIT_SPD, &PulseCounter_SPD); // get pulse counter value - maximum value is 16 bits
         pcnt_get_counter_value(PCNT_FREQ_UNIT_RPM, &PulseCounter_RPM); // get pulse counter value - maximum value is 16 bits
-
-        SPD_freq_in_mHz = (PulseCounter_SPD - lastPulseCounter_SPD) / (millis() - lastmSec);
-        RPM_freq_in_mHz = (PulseCounter_RPM - lastPulseCounter_RPM) / (millis() - lastmSec);
+        DEBUG_PRINTLN((millis() - lastmSec))
+        SPD = SPD_Calc_Factor * (PulseCounter_SPD - lastPulseCounter_SPD) / (millis() - lastmSec);
+        RPM = RPM_Calc_Factor * (PulseCounter_RPM - lastPulseCounter_RPM) / (millis() - lastmSec);
         lastPulseCounter_RPM = PulseCounter_RPM;
         lastPulseCounter_SPD = PulseCounter_SPD;
         lastmSec = millis();
-
-        SPD = SPD_freq_in_mHz * SPD_Calc_Factor;
-        RPM = RPM_freq_in_mHz * RPM_Calc_Factor;
 
         if (BNO055isOK)
         {
@@ -257,11 +238,11 @@ void Task_UpdateData(void *pvParameters) // 测时速、转速、姿态、SD卡�
     }
 }
 
-void Task_UpdateTime(void *pvParameters) // 测速任务
+void Task_UpdateTime(void *pvParameters) //
 {
     (void)pvParameters;
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = 1500;
+    const TickType_t xFrequency = 999;
 
     // 用当前时间初始化xLastWakeTime变量。
     xLastWakeTime = xTaskGetTickCount();
@@ -279,15 +260,44 @@ void Task_UpdateTime(void *pvParameters) // 测速任务
         uint8_t wday;
         if (!rtc.getDateTime(&hour, &min, &sec, &mday, &mon, &year, &wday))
         {
-            Serial.println(F("Read date/time failed"));
+            // Serial.println(F("Read date/time failed"));
             vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
         }
-        DEBUG_PRINT(hour)
-        DEBUG_PRINT(min)
-        DEBUG_PRINT(sec)
-        DEBUG_PRINT(year)
-        DEBUG_PRINT(mon)
-        DEBUG_PRINTLN(mday)
+
+        if (wifiNeverConnected == true)
+        {
+            // if (GPSconnected)
+            // {
+            //     //get time from gps
+            // }
+
+            if (WiFi.status() == WL_CONNECTED)
+            {
+                //init and get the time
+                configTime(gmtOffset_sec, 0, ntpServer);
+                timeSyncedFromNTP = true;
+                Serial.println("get Time From NTP server Success");
+                wifiNeverConnected = false;
+            }
+        }
+        if (getLocalTime(&timeinfo))
+        {
+            // Serial.println(&timeinfo, "%F %T");
+        }
+        else
+        {
+            Serial.println("Failed to obtain time");
+        }
+        int temp1 = gauge.readPercentage();
+        if (temp1 <= 100 && temp1 >0)
+        {
+            BTRYpercentage = temp1;
+        }
+        int temp2 = gauge.readVoltage();
+        if (temp2 < 5000)
+        {
+            BTRYvoltage = temp2;
+        }
     }
 }
 

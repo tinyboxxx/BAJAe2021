@@ -68,10 +68,14 @@ void setup(void)
                  });
 
     ArduinoOTA.begin();
-    Serial.println("Ready");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
   }
+  // GPS ====================================
+  Serial1.begin(9600, SERIAL_8N1, Serial1_RXPIN, Serial1_TXPIN); // GPS com
+  // LORA ====================================
+  Serial2.begin(9600, SERIAL_8N1, Serial2_RXPIN, Serial2_TXPIN); // GPS com
+  Serial2.println("booting");
 
   // I2C ====================================
   Wire.begin(I2C_SDA, I2C_SCL);
@@ -85,28 +89,15 @@ void setup(void)
   }
   rtc.setSquareWave(SquareWaveDisable);
 
-  // // BTY
-  // lipo.enableDebugging(); // Uncomment this line to enable helpful debug messages on Serial
-
-  // // Set up the MAX17043 LiPo fuel gauge:
-  // if (lipo.begin() == false) // Connect to the MAX17043 using the default wire port
-  // {
-  //   Serial.println(F("MAX17043 not detected. Please check wiring"));
-  // }
-
-  // // Quick start restarts the MAX17043 in hopes of getting a more accurate
-  // // guess for the SOC.
-  // lipo.quickStart();
-
-  // // We can set an interrupt to alert when the battery SoC gets too low.
-  // // We can alert at anywhere between 1% - 32%:
-  // lipo.setThreshold(20); // Set alert threshold to 20%.
-
-  // GPS ====================================
-  Serial1.begin(9600, SERIAL_8N1, Serial1_RXPIN, Serial1_TXPIN); // GPS com
-  // LORA ====================================
-  Serial2.begin(9600, SERIAL_8N1, Serial2_RXPIN, Serial2_TXPIN); // GPS com
-  Serial2.println("booting");
+  // BTY ====================================
+  if (gauge.begin() == 0)
+  {
+    Serial.println("gauge begin successful!");
+  }
+  else
+  {
+    Serial.println("gauge begin failed!");
+  }
 
   // BNO055姿态 ====================================
   if (!bno.begin()) // 初始化传感器
@@ -115,7 +106,8 @@ void setup(void)
     Serial2.print("ERR no BNO055 detected"); // 检测BNO055时出现问题...请检查您的连接
     BNO055isOK = false;
   }
-  bno.setExtCrystalUse(true); //使用外部晶振以获得更好的精度
+  else
+    bno.setExtCrystalUse(true); //使用外部晶振以获得更好的精度
 
   // OLED屏幕 ====================================
   u8g2.begin();

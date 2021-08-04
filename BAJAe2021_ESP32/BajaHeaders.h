@@ -46,6 +46,8 @@ sensors_event_t linearAccelData; //BNO event
 #include <ArduinoOTA.h>
 const char *ssid = "TiWifi";
 const char *password = "hexiaoqi";
+const char *ntpServer = "cn.ntp.org.cn";
+const long gmtOffset_sec = 8 * 60 * 60; //Replace with your GMT offset (seconds)
 
 // LED灯条 =====================================
 #include <FastLED.h>
@@ -72,92 +74,20 @@ const float Home_LNG = -96.951125; // Your Home Longitude
 int incomingByte;
 TinyGPSPlus gps; // 创建一个名为gps的TinyGPS++对象的实例。
 
-static void printFloat(float val, bool valid, int len, int prec)
-{
-    if (!valid)
-    {
-        while (len-- > 1)
-            Serial.print('*');
-        Serial.print(' ');
-    }
-    else
-    {
-        Serial.print(val, prec);
-        int vi = abs((int)val);
-        int flen = prec + (val < 0.0 ? 2 : 1); // . and -
-        flen += vi >= 1000 ? 4 : vi >= 100 ? 3
-                             : vi >= 10    ? 2
-                                           : 1;
-        for (int i = flen; i < len; ++i)
-            Serial.print(' ');
-    }
-    vTaskDelay(0);
-}
-
-static void printInt(unsigned long val, bool valid, int len)
-{
-    char sz[32] = "*****************";
-    if (valid)
-        sprintf(sz, "%ld", val);
-    sz[len] = 0;
-    for (int i = strlen(sz); i < len; ++i)
-        sz[i] = ' ';
-    if (len > 0)
-        sz[len - 1] = ' ';
-    Serial.print(sz);
-    vTaskDelay(0);
-}
-
-static void printDateTime(TinyGPSDate &d, TinyGPSTime &t)
-{
-    if (!d.isValid())
-    {
-        Serial.print(F("********** "));
-    }
-    else
-    {
-        char sz[32];
-        sprintf(sz, "%02d/%02d/%02d ", d.month(), d.day(), d.year());
-        Serial.print(sz);
-    }
-
-    if (!t.isValid())
-    {
-        Serial.print(F("******** "));
-    }
-    else
-    {
-        char sz[32];
-        sprintf(sz, "%02d:%02d:%02d ", t.hour(), t.minute(), t.second());
-        Serial.print(sz);
-    }
-
-    printInt(d.age(), d.isValid(), 5);
-    vTaskDelay(0);
-}
-
-static void printStr(const char *str, int len)
-{
-    int slen = strlen(str);
-    for (int i = 0; i < len; ++i)
-        Serial.print(i < slen ? str[i] : ' ');
-    vTaskDelay(0);
-}
+// sprintf(sz, "%02d:%02d:%02d ", t.hour(), t.minute(), t.second());
+// sprintf(sz,"%02d/%02d/%02d ", d.month(), d.day(), d.year());
 
 // TIME ====================================
+struct tm timeinfo;//time in ESP32
+#include "time.h"
 #include <ErriezDS3231.h>
 ErriezDS3231 rtc;
 
 //BTRY ====================================
-#include <SparkFun_MAX1704x_Fuel_Gauge_Arduino_Library.h>
-// Click here to get the library: http://librarymanager/All#SparkFun_MAX1704x_Fuel_Gauge_Arduino_Library
-
-// SFE_MAX1704X lipo; // Defaults to the MAX17043
-SFE_MAX1704X lipo(MAX1704X_MAX17043); // Create a MAX17043
-
-double voltage = 0; // Variable to keep track of LiPo voltage
-double soc = 0;     // Variable to keep track of LiPo state-of-charge (SOC)
-bool alert;         // Variable to keep track of whether alert has been triggered
+#include "DFRobot_MAX17043.h"
+DFRobot_MAX17043        gauge;
+int BTRYvoltage = 0;
+int BTRYpercentage = 0;
 
 // 函数的头文件
 long map(long x, long in_min, long in_max, long out_min, long out_max);
@@ -199,31 +129,6 @@ void errorCallback(cmd_error *e)
     }
 }
 
-// 频率计1
-int lastmSec = 0;
-
-int lastPulseCounter_SPD = 0;
-float SPD_freq_in_mHz = 0.0;
-int SPD_Calc_Factor = 10533132; //频率换算系数，计算方法为如下
-
-int lastPulseCounter_RPM = 0;
-float RPM_freq_in_mHz = 0.0;
-int RPM_Calc_Factor = 60000; //频率换算系数，计算方法为如下
-
-/*
-速度：
-前面的单位是毫Hz，需要再乘1000才是Hz
-车轮周长 175.5522 cm
-0.1755522m
-
-每圈60个脉冲
-每秒 1000 mhz*0.1755522m/60
-每小时 1000*3600m*hz*0.1755522/60 m
-
-mhz*60*175.5522*1000 km/h = 10533132
-
-*/
-
 // Stats 状态变量 ====================================
 
 bool setLEDtoSpeed = false; // 1:SPEED 0:RPM
@@ -244,6 +149,12 @@ bool debug_Using_LORA = true;
 bool BNO055isOK = true;
 bool DS3231isOK = true;
 
+bool wifiNeverConnected = true;
+bool GPSNeverConnected = true;
+bool timeSyncedFromNTP = false;
+bool timeSyncedFromRTC = false;
+bool timeSyncedFromGPS = false;
+
 //行车数据变量=============================
 unsigned int RPM = 0;
 unsigned int SPD = 0; //千米每小时
@@ -262,14 +173,12 @@ float GFx_OLED_ZoomLevel = 1.5;
 #include "driver/pcnt.h" // ESP32 library for pulse count
 // e.g. stored in following path C:\Users\User\Documents\Arduino\hardware\arduino-esp32-master\tools\sdk\include\driver\driver\pcnt.h
 // when in the Arduino IDE properties the sketchbook storage location is set to C:\Users\User\Documents\Arduino
-
 #define PCNT_FREQ_UNIT_SPD PCNT_UNIT_0 // select ESP32 pulse counter unit 0 (out of 0 to 7 indipendent counting units)
 #define PCNT_FREQ_UNIT_RPM PCNT_UNIT_1 // select ESP32 pulse counter unit 0 (out of 0 to 7 indipendent counting units)
-
 // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/pcnt.html
 
-int SPD_INPUT_PIN = 33; //
-int RPM_INPUT_PIN = 32; //
+int SPD_INPUT_PIN = 33; 
+int RPM_INPUT_PIN = 32; 
 
 int16_t PulseCounter_SPD = 0;    // pulse counter, max. value is 65536
 int OverflowCounter_SPD = 0;     // pulse counter overflow counter
