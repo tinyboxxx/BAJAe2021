@@ -78,14 +78,14 @@ TinyGPSPlus gps; // 创建一个名为gps的TinyGPS++对象的实例。
 // sprintf(sz,"%02d/%02d/%02d ", d.month(), d.day(), d.year());
 
 // TIME ====================================
-struct tm timeinfo;//time in ESP32
+struct tm timeinfo; //time in ESP32
 #include "time.h"
 #include <ErriezDS3231.h>
 ErriezDS3231 rtc;
 
 //BTRY ====================================
 #include "DFRobot_MAX17043.h"
-DFRobot_MAX17043        gauge;
+DFRobot_MAX17043 gauge;
 int BTRYvoltage = 0;
 int BTRYpercentage = 0;
 
@@ -155,6 +155,8 @@ bool timeSyncedFromNTP = false;
 bool timeSyncedFromRTC = false;
 bool timeSyncedFromGPS = false;
 
+bool I2C_is_Busy = false;
+
 //行车数据变量=============================
 unsigned int RPM = 0;
 unsigned int SPD = 0; //千米每小时
@@ -170,6 +172,10 @@ int GFx_OLED = 0;
 int GFy_OLED = 0;
 float GFx_OLED_ZoomLevel = 1.5;
 
+float gps_hdop = 0.0;
+float gps_speed = 0.0;
+int gps_sat_count = 0;
+
 #include "driver/pcnt.h" // ESP32 library for pulse count
 // e.g. stored in following path C:\Users\User\Documents\Arduino\hardware\arduino-esp32-master\tools\sdk\include\driver\driver\pcnt.h
 // when in the Arduino IDE properties the sketchbook storage location is set to C:\Users\User\Documents\Arduino
@@ -177,8 +183,8 @@ float GFx_OLED_ZoomLevel = 1.5;
 #define PCNT_FREQ_UNIT_RPM PCNT_UNIT_1 // select ESP32 pulse counter unit 0 (out of 0 to 7 indipendent counting units)
 // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/pcnt.html
 
-int SPD_INPUT_PIN = 33; 
-int RPM_INPUT_PIN = 32; 
+int SPD_INPUT_PIN = 33;
+int RPM_INPUT_PIN = 32;
 
 int16_t PulseCounter_SPD = 0;    // pulse counter, max. value is 65536
 int OverflowCounter_SPD = 0;     // pulse counter overflow counter
@@ -265,4 +271,11 @@ void Read_Reset_PCNT_RPM()
     // resetting counter as if example, delet for application in PiedPiperS
     OverflowCounter_RPM = 0;                // set overflow counter to zero
     pcnt_counter_clear(PCNT_FREQ_UNIT_RPM); // zero and reset of pulse counter unit
+}
+
+bool setRTCTimeFromRAM()
+{
+    time_t nowEpoch;
+    time(&nowEpoch);
+    rtc.setEpoch(nowEpoch + 8 * 3600); //我们时区在+8区
 }

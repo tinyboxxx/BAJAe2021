@@ -3,6 +3,8 @@
 
 void setup(void)
 {
+  // WiFi.mode(WIFI_OFF);
+  btStop();//关闭蓝牙
   pinMode(32, INPUT_PULLUP); //rpm 引脚
   pinMode(33, INPUT_PULLUP); //SPD 引脚
   initPulseCounter_RPM();
@@ -82,7 +84,11 @@ void setup(void)
   Wire.setClock(100000);
   // TIME ====================================
   // Initialize RTC
-  if (!rtc.begin())
+  if (rtc.begin())
+  {
+    rtc.read(&timeinfo);
+  }
+  else
   {
     Serial.println(F("RTC not found"));
     bool DS3231isOK = false;
@@ -111,6 +117,9 @@ void setup(void)
 
   // OLED屏幕 ====================================
   u8g2.begin();
+  u8g2.setDrawColor(1); // White
+  u8g2.setFontMode(0);
+  u8g2.setContrast(255);
 
   // LED =========================================
   FastLED.addLeds<APA102, LED_DATA_PIN, LED_CLOCK_PIN, BGR>(leds, NUM_LEDS);

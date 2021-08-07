@@ -23,12 +23,23 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
     for (;;)                             // 任务永远不会返回或退出。
     {
         vTaskDelayUntil(&xLastWakeTime, xFrequency); // 等待下一个周期。
+
         if (isOTAing == 0)
         {
+            if (BNO055isOK && I2C_is_Busy == false)
+            {
+                I2C_is_Busy = true;
+                bno.getEvent(&linearAccelData, Adafruit_BNO055::VECTOR_LINEARACCEL);
+                GFy = linearAccelData.acceleration.z;
+                GFx = linearAccelData.acceleration.y;
+                vTaskDelay(3);
+                I2C_is_Busy = false;
 
-            u8g2.clearBuffer();   //清空屏幕
-            u8g2.setDrawColor(1); // White
-            u8g2.setFontMode(0);
+                //(float)linearAccelData.acceleration.y 是车前后
+                //(float)linearAccelData.acceleration.z 是车左右
+            }
+
+            u8g2.clearBuffer(); //清空屏幕
 
             u8g2.setFont(u8g2_font_5x7_tr);
             char PrinterStr[20];
@@ -54,12 +65,12 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             else if (GFy_OLED < -26)
                 GFy_OLED = -26;
 
-            u8g2.drawBox(GFx_OLED + 25, GFy_OLED + 36, 3, 3); //指示点 初始位置25,36,3,3
+            u8g2.drawFrame(GFx_OLED + 25, GFy_OLED + 36, 3, 3); //指示点 初始位置25,36,3,3
 
             char bufferStr2[2];
-            if (gps.hdop.hdop() <= 1.3)
+            if (gps_hdop <= 1.3)
             {
-                sprintf(bufferStr2, "%02d", gps.speed.kmph());
+                sprintf(bufferStr2, "%02d", gps_speed);
             }
             else
             {
@@ -87,15 +98,25 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
                 drawSignal(u8g2, 180, 12, 4); //满格信号，三格
 
             u8g2.setFont(u8g2_font_siji_t_6x10);
-            // u8g2.drawGlyph(x, y, 0xe242);   //empty
-            // u8g2.drawGlyph(x, y, 0xe250);   //half
-            u8g2.drawGlyph(194, 12, 0xe254); //full
+
+            if (BTRYpercentage > 80)
+            {
+                u8g2.drawGlyph(194, 12, 0xe254); //full
+            }
+            else if (BTRYpercentage > 30)
+            {
+                u8g2.drawGlyph(194, 12, 0xe250); //half
+            }
+            else
+            {
+                u8g2.drawGlyph(194, 12, 0xe242); //empty
+            }
 
             u8g2.setFont(u8g2_font_6x10_mr);
             u8g2.setCursor(180, 28);
-            u8g2.print(gps.satellites.value());
+            u8g2.print(gps_sat_count);
             u8g2.setCursor(180, 37);
-            u8g2.print(gps.speed.kmph());
+            u8g2.print(gps_speed);
             u8g2.setCursor(180, 46);
             u8g2.print(BTRYvoltage);
             u8g2.setCursor(180, 55);
@@ -172,6 +193,11 @@ void Task_GetGpsLora(void *pvParameters) // GPS刷新任务
         vTaskDelay(1);                               // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
         while (Serial1.available())
             gps.encode(Serial1.read()); /* Get GPS data */
+
+        gps_hdop = gps.hdop.hdop();
+        gps_speed = gps.speed.kmph();
+        gps_sat_count = gps.satellites.value();
+
         if (Serial2.available())
         {
             String input = Serial2.readStringUntil('\n'); // Read out string from the serial monitor
@@ -218,21 +244,12 @@ void Task_UpdateData(void *pvParameters) // 测时速、转速、姿态、SD卡�
 
         pcnt_get_counter_value(PCNT_FREQ_UNIT_SPD, &PulseCounter_SPD); // get pulse counter value - maximum value is 16 bits
         pcnt_get_counter_value(PCNT_FREQ_UNIT_RPM, &PulseCounter_RPM); // get pulse counter value - maximum value is 16 bits
-        DEBUG_PRINTLN((millis() - lastmSec))
+        // DEBUG_PRINTLN((millis() - lastmSec))
         SPD = SPD_Calc_Factor * (PulseCounter_SPD - lastPulseCounter_SPD) / (millis() - lastmSec);
         RPM = RPM_Calc_Factor * (PulseCounter_RPM - lastPulseCounter_RPM) / (millis() - lastmSec);
         lastPulseCounter_RPM = PulseCounter_RPM;
         lastPulseCounter_SPD = PulseCounter_SPD;
         lastmSec = millis();
-
-        if (BNO055isOK)
-        {
-            bno.getEvent(&linearAccelData, Adafruit_BNO055::VECTOR_LINEARACCEL);
-            GFy = linearAccelData.acceleration.z;
-            GFx = linearAccelData.acceleration.y;
-            //(float)linearAccelData.acceleration.y 是车前后
-            //(float)linearAccelData.acceleration.z 是车左右
-        }
 
         vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
     }
@@ -251,17 +268,20 @@ void Task_UpdateTime(void *pvParameters) //
     {
         // 等待下一个周期
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        uint8_t hour;
-        uint8_t min;
-        uint8_t sec;
-        uint8_t mday;
-        uint8_t mon;
-        uint16_t year;
-        uint8_t wday;
-        if (!rtc.getDateTime(&hour, &min, &sec, &mday, &mon, &year, &wday))
+        struct tm dt;
+        if (I2C_is_Busy == false && DS3231isOK)
         {
-            // Serial.println(F("Read date/time failed"));
-            vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
+            I2C_is_Busy = true;
+            if (!rtc.read(&dt))
+            {
+                Serial.println(F("Read date/time failed"));
+            }
+            else
+            {
+                vTaskDelay(5);
+                Serial.println(asctime(&dt));
+            }
+            I2C_is_Busy = false;
         }
 
         if (wifiNeverConnected == true)
@@ -276,8 +296,12 @@ void Task_UpdateTime(void *pvParameters) //
                 //init and get the time
                 configTime(gmtOffset_sec, 0, ntpServer);
                 timeSyncedFromNTP = true;
-                Serial.println("get Time From NTP server Success");
+                Serial.println("Got Time From NTP server, Success");
+                getLocalTime(&timeinfo);
+                vTaskDelay(5);
                 wifiNeverConnected = false;
+                if (DS3231isOK)
+                    setRTCTimeFromRAM();
             }
         }
         if (getLocalTime(&timeinfo))
@@ -288,15 +312,21 @@ void Task_UpdateTime(void *pvParameters) //
         {
             Serial.println("Failed to obtain time");
         }
-        int temp1 = gauge.readPercentage();
-        if (temp1 <= 100 && temp1 >0)
+        if (I2C_is_Busy == false)
         {
-            BTRYpercentage = temp1;
-        }
-        int temp2 = gauge.readVoltage();
-        if (temp2 < 5000)
-        {
-            BTRYvoltage = temp2;
+            I2C_is_Busy = true;
+            int temp1 = gauge.readPercentage();
+            if (temp1 <= 100 && temp1 > 0)
+            {
+                BTRYpercentage = temp1;
+            }
+            int temp2 = gauge.readVoltage();
+            if (temp2 < 5000 && temp2 > 0)
+            {
+                BTRYvoltage = temp2;
+            }
+            vTaskDelay(3);
+            I2C_is_Busy = false;
         }
     }
 }
