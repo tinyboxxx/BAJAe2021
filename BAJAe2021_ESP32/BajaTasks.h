@@ -26,15 +26,13 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
 
         if (isOTAing == 0)
         {
-            if (BNO055isOK && I2C_is_Busy == false)
+            if (BNO055isOK == true && I2C_is_Busy == false)
             {
                 I2C_is_Busy = true;
                 bno.getEvent(&linearAccelData, Adafruit_BNO055::VECTOR_LINEARACCEL);
                 GFy = linearAccelData.acceleration.z;
                 GFx = linearAccelData.acceleration.y;
-                vTaskDelay(3);
                 I2C_is_Busy = false;
-
                 //(float)linearAccelData.acceleration.y 是车前后
                 //(float)linearAccelData.acceleration.z 是车左右
             }
@@ -90,11 +88,11 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             u8g2.setFont(u8g2_font_6x10_mr); //日期时间显示
 
             u8g2.setCursor(97, 55);
-            u8g2.print(&timeinfo, "%F");
+            u8g2.print(&time_in_RAM, "%F");
             u8g2.setCursor(103, 64);
-            u8g2.print(&timeinfo, "%T");
+            u8g2.print(&time_in_RAM, "%T");
 
-            if (wifi_connected)
+            if (WiFi.waitForConnectResult() != WL_CONNECTE)
                 drawSignal(u8g2, 180, 12, 4); //满格信号，三格
 
             u8g2.setFont(u8g2_font_siji_t_6x10);
@@ -203,6 +201,11 @@ void Task_GetGpsLora(void *pvParameters) // GPS刷新任务
             String input = Serial2.readStringUntil('\n'); // Read out string from the serial monitor
             cli.parse(input);                             // Parse the user input into the CLI
         }
+        if (Serial.available())
+        {
+            String input = Serial.readStringUntil('\n'); // Read out string from the serial monitor
+            cli.parse(input);                            // Parse the user input into the CLI
+        }
         if (cli.errored())
         {
             CommandError cmdError = cli.getError();
@@ -268,20 +271,9 @@ void Task_UpdateTime(void *pvParameters) //
     {
         // 等待下一个周期
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        struct tm dt;
-        if (I2C_is_Busy == false && DS3231isOK)
+        if (I2C_is_Busy == false && DS3231isOK && timeSyncedFromNTP == false && timeSyncedFromGPS == false && timeSyncedFromRTC == false) //读取RTC的时间
         {
-            I2C_is_Busy = true;
-            if (!rtc.read(&dt))
-            {
-                Serial.println(F("Read date/time failed"));
-            }
-            else
-            {
-                vTaskDelay(5);
-                Serial.println(asctime(&dt));
-            }
-            I2C_is_Busy = false;
+            RTCtoRAM();
         }
 
         if (wifiNeverConnected == true)
@@ -291,22 +283,10 @@ void Task_UpdateTime(void *pvParameters) //
             //     //get time from gps
             // }
 
-            if (WiFi.status() == WL_CONNECTED)
-            {
-                //init and get the time
-                configTime(gmtOffset_sec, 0, ntpServer);
-                timeSyncedFromNTP = true;
-                Serial.println("Got Time From NTP server, Success");
-                getLocalTime(&timeinfo);
-                vTaskDelay(5);
-                wifiNeverConnected = false;
-                if (DS3231isOK)
-                    setRTCTimeFromRAM();
-            }
         }
-        if (getLocalTime(&timeinfo))
+        if (getLocalTime(&time_in_RAM)) // update time From ESP32 to RAM
         {
-            // Serial.println(&timeinfo, "%F %T");
+            Serial.println(&time_in_RAM, "%F %T");
         }
         else
         {
@@ -325,7 +305,6 @@ void Task_UpdateTime(void *pvParameters) //
             {
                 BTRYvoltage = temp2;
             }
-            vTaskDelay(3);
             I2C_is_Busy = false;
         }
     }

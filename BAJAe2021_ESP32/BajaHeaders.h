@@ -19,6 +19,16 @@
 #define DEBUG_PRINTLN(x)
 #endif
 
+#define TELL_EVERYONE_LN(x) \
+    Serial.println(x);      \
+    Serial2.println(x);
+//futureSDcardhere
+
+#define TELL_EVERYONE(x) \
+    Serial.print(x);     \
+    Serial2.print(x);
+//futureSDcardhere
+
 #include <Arduino.h>
 #include <U8g2lib.h>
 #include <SPI.h>
@@ -65,6 +75,13 @@ int RPM_Red_After = 8;
 
 // OLED屏幕 ====================================
 U8G2_SSD1322_NHD_256X64_F_4W_HW_SPI u8g2(U8G2_R0, /* cs=*/5, /* dc=*/12, /* reset=*/14); // Enable U8G2_16BIT in u8g2.h
+// Create a U8x8log object
+U8G2LOG u8g2log;
+// Define the dimension of the U8x8log window
+#define U8LOG_WIDTH 32
+#define U8LOG_HEIGHT 8
+// Allocate static memory for the U8x8log window
+uint8_t u8log_buffer[U8LOG_WIDTH * U8LOG_HEIGHT];
 
 // GPS ====================================
 #define Serial1_RXPIN 21           //to GPS TX
@@ -78,7 +95,7 @@ TinyGPSPlus gps; // 创建一个名为gps的TinyGPS++对象的实例。
 // sprintf(sz,"%02d/%02d/%02d ", d.month(), d.day(), d.year());
 
 // TIME ====================================
-struct tm timeinfo; //time in ESP32
+struct tm time_in_RAM; //time in ESP32 RAM
 #include "time.h"
 #include <ErriezDS3231.h>
 ErriezDS3231 rtc;
@@ -99,28 +116,23 @@ float floatMapping(float x, float in_min, float in_max, float out_min, float out
 #define Serial2_TXPIN 17 //to LORA RX
 
 // CLI ====================================
-// Inlcude Library
-#include <SimpleCLI.h>
-
-// Create CLI Object
-SimpleCLI cli;
-
-// Commands
-Command updatetime;
-
-// Callback function for cowsay command
-void update_time_to_given_time(cmd *c)
+#include <SimpleCLI.h> // Inlcude Library
+SimpleCLI cli;         // Create CLI Object
+void turnoffwifi()     // Callback function for cowsay command
 {
+    WiFi.mode(WIFI_OFF);
+}
+void turnonwifi() // Callback function for cowsay command
+{
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, password);
 }
 
-// Callback in case of an error
-void errorCallback(cmd_error *e)
+void errorCallback(cmd_error *e) // Callback in case of an error
 {
     CommandError cmdError(e); // Create wrapper object
-
     Serial2.print("ERROR: ");
     Serial2.println(cmdError.toString());
-
     if (cmdError.hasCommand())
     {
         Serial2.print("Did you mean \"");
@@ -130,7 +142,6 @@ void errorCallback(cmd_error *e)
 }
 
 // Stats 状态变量 ====================================
-
 bool setLEDtoSpeed = false; // 1:SPEED 0:RPM
 bool enableFakeData = true; //开启假数据
 
@@ -185,7 +196,6 @@ int gps_sat_count = 0;
 
 int SPD_INPUT_PIN = 33;
 int RPM_INPUT_PIN = 32;
-
 int16_t PulseCounter_SPD = 0;    // pulse counter, max. value is 65536
 int OverflowCounter_SPD = 0;     // pulse counter overflow counter
 int16_t PulseCounter_RPM = 0;    // pulse counter, max. value is 65536
@@ -194,21 +204,18 @@ int PCNT_H_LIM_VAL = 10000;      // upper limit of counting  max. 32767, write +
 uint16_t PCNT_FILTER_VAL = 1000; // filter (damping, inertia) value for avoiding glitches in the count, max. 1023
 
 pcnt_isr_handle_t user_isr_handle = NULL; // interrupt handler - not used
-
 void IRAM_ATTR CounterOverflow_SPD(void *arg)
 {                                                  // Interrupt for overflow of pulse counter
     OverflowCounter_SPD = OverflowCounter_SPD + 1; // increase overflow counter
     PCNT.int_clr.val = BIT(PCNT_FREQ_UNIT_SPD);    // clean overflow flag
     pcnt_counter_clear(PCNT_FREQ_UNIT_SPD);        // zero and reset of pulse counter unit
 }
-
 void IRAM_ATTR CounterOverflow_RPM(void *arg)
 {                                                  // Interrupt for overflow of pulse counter
     OverflowCounter_RPM = OverflowCounter_RPM + 1; // increase overflow counter
     PCNT.int_clr.val = BIT(PCNT_FREQ_UNIT_RPM);    // clean overflow flag
     pcnt_counter_clear(PCNT_FREQ_UNIT_RPM);        // zero and reset of pulse counter unit
 }
-
 void initPulseCounter_SPD()
 {                                                      // initialise pulse counter
     pcnt_config_t pcntFreqConfig_SPD = {};             // Instance of pulse counter
@@ -231,7 +238,6 @@ void initPulseCounter_SPD()
 
     pcnt_counter_resume(PCNT_FREQ_UNIT_SPD); // resume counting on pulse counter unit
 }
-
 void initPulseCounter_RPM()
 {                                                      // initialise pulse counter
     pcnt_config_t pcntFreqConfig_RPM = {};             // Instance of pulse counter
@@ -254,7 +260,6 @@ void initPulseCounter_RPM()
 
     pcnt_counter_resume(PCNT_FREQ_UNIT_RPM); // resume counting on pulse counter unit
 }
-
 void Read_Reset_PCNT_SPD()
 {                                                                  // function for reading pulse counter (for timer)
     pcnt_get_counter_value(PCNT_FREQ_UNIT_SPD, &PulseCounter_SPD); // get pulse counter value - maximum value is 16 bits
@@ -263,7 +268,6 @@ void Read_Reset_PCNT_SPD()
     OverflowCounter_SPD = 0;                // set overflow counter to zero
     pcnt_counter_clear(PCNT_FREQ_UNIT_SPD); // zero and reset of pulse counter unit
 }
-
 void Read_Reset_PCNT_RPM()
 {                                                                  // function for reading pulse counter (for timer)
     pcnt_get_counter_value(PCNT_FREQ_UNIT_RPM, &PulseCounter_RPM); // get pulse counter value - maximum value is 16 bits
@@ -273,9 +277,104 @@ void Read_Reset_PCNT_RPM()
     pcnt_counter_clear(PCNT_FREQ_UNIT_RPM); // zero and reset of pulse counter unit
 }
 
-bool setRTCTimeFromRAM()
+void bootUpPrint(String textHere)
 {
-    time_t nowEpoch;
-    time(&nowEpoch);
-    rtc.setEpoch(nowEpoch + 8 * 3600); //我们时区在+8区
+    Serial.println(textHere);
+    u8g2log.print(textHere);
+    u8g2log.print("\n");
+}
+void bootUpPrintWithLora(String textHere)
+{
+    Serial.println(textHere);
+    Serial2.println(textHere);
+    u8g2log.print(textHere);
+    u8g2log.print("\n");
+}
+
+void printRTCtime()
+{
+    struct tm TimeInRTC;
+
+    if (rtc.read(&TimeInRTC))
+    {
+        TELL_EVERYONE("RTC time:")
+        TELL_EVERYONE_LN(asctime(&TimeInRTC))
+    }
+    else
+    {
+        TELL_EVERYONE_LN("RTC error")
+    }
+}
+void printRAMtime()
+{
+    TELL_EVERYONE_LN("RAM Time:")
+    TELL_EVERYONE_LN(&time_in_RAM, "%F %T")
+}
+
+void RTCtoRAM()
+{
+    printRTCtime();
+    printRAMtime();
+    I2C_is_Busy = true;
+    struct tm TimeInRTC;
+    if (rtc.read(&TimeInRTC))
+    {
+        time_t t = mktime(&TimeInRTC);
+        struct timeval now = {.tv_sec = t};
+        settimeofday(&now, NULL);
+        timeSyncedFromRTC = true;
+        printRTCtime();
+        printRAMtime();
+    }
+    else
+    {
+        TELL_EVERYONE_LN("RTC error,RTCtoRAM FAIL")
+    }
+    I2C_is_Busy = false;
+}
+void NTPtoRAM()
+{
+    if (WiFi.status() == WL_CONNECTED)
+    {
+        printRAMtime();
+        TELL_EVERYONE_LN("getting Time From NTP server")
+        configTime(gmtOffset_sec, 0, ntpServer);
+        timeSyncedFromNTP = true;
+        getLocalTime(&time_in_RAM); //连接服务器更新时间
+        printRAMtime();
+
+        RAMtoRTC();
+        wifiNeverConnected = false;
+    }
+    else
+        TELL_EVERYONE_LN("wifi error")
+}
+void GPStoRAM()
+{
+    // gps.date, gps.time
+    // !d.isValid()
+    // char sz[32];
+    // sprintf(sz, "%02d/%02d/%02d ", d.month(), d.day(), d.year());
+    // Serial.print(sz);
+}
+void RAMtoRTC()
+{
+    if (DS3231isOK)
+    {
+        printRAMtime();
+        printRTCtime();
+        while (I2C_is_Busy)
+        {
+            TELL_EVERYONE_LN("I2C_is_Busy");
+            //wait
+        }
+        I2C_is_Busy = true;
+        TELL_EVERYONE_LN("RAMtoRTC");
+        time_t nowEpoch;
+        time(&nowEpoch);
+        rtc.setEpoch(nowEpoch + 8 * 3600); //我们时区在+8区
+        I2C_is_Busy = false;
+        printRAMtime();
+        printRTCtime();
+    }
 }
