@@ -46,8 +46,11 @@ sensors_event_t linearAccelData; //BNO event
 
 // I2C ====================================
 #define I2C_SDA 13
-#define I2C_SCL 4
+#define I2C_SCL 2
 //BNO055 address: 41 (0x29)
+
+
+
 
 // WIFIOTA ====================================
 #include <WiFi.h>
@@ -57,14 +60,14 @@ sensors_event_t linearAccelData; //BNO event
 const char *ssid = "TiWifi";
 const char *password = "hexiaoqi";
 const char *ntpServer = "cn.ntp.org.cn";
-const long gmtOffset_sec = 8 * 60 * 60; //Replace with your GMT offset (seconds)
+const long gmtOffset_sec = 28800; //Replace with your GMT offset (seconds) 8 * 60 * 60
 
 // LED灯条 =====================================
-#include <FastLED.h>
-#define LED_DATA_PIN 26
-#define LED_CLOCK_PIN 27
-#define NUM_LEDS 10
-CRGB leds[NUM_LEDS]; // 定义LED阵列
+
+//https://github.com/adafruit/Adafruit-MCP23017-Arduino-Library/
+
+
+
 #define RPM_Display_MIN 1500
 #define RPM_Display_MAX 3750
 #define SPD_Display_MIN 3
@@ -75,6 +78,8 @@ int RPM_Red_After = 8;
 
 // OLED屏幕 ====================================
 U8G2_SSD1322_NHD_256X64_F_4W_HW_SPI u8g2(U8G2_R0, /* cs=*/5, /* dc=*/12, /* reset=*/14); // Enable U8G2_16BIT in u8g2.h
+
+// OLED log ====================================
 // Create a U8x8log object
 U8G2LOG u8g2log;
 // Define the dimension of the U8x8log window
@@ -101,8 +106,7 @@ struct tm time_in_RAM; //time in ESP32 RAM
 ErriezDS3231 rtc;
 
 //BTRY ====================================
-#include "DFRobot_MAX17043.h"
-DFRobot_MAX17043 gauge;
+
 int BTRYvoltage = 0;
 int BTRYpercentage = 0;
 
@@ -141,6 +145,16 @@ void errorCallback(cmd_error *e) // Callback in case of an error
     }
 }
 
+//测速 RPM SPD====================================
+//https://github.com/madhephaestus/ESP32Encoder
+
+#include <ESP32Encoder.h>
+
+ESP32Encoder encoder_speed;
+ESP32Encoder encoder_rpm;
+
+
+
 // Stats 状态变量 ====================================
 bool setLEDtoSpeed = false; // 1:SPEED 0:RPM
 bool enableFakeData = true; //开启假数据
@@ -153,9 +167,6 @@ bool wifi_connected = false;
 bool isOTAing = false;
 unsigned int OTAprogress = 0;
 unsigned int OTAtotal = 0;
-
-bool debug_Using_USB = true;
-bool debug_Using_LORA = true;
 
 bool BNO055isOK = true;
 bool DS3231isOK = true;
@@ -187,103 +198,13 @@ float gps_hdop = 0.0;
 float gps_speed = 0.0;
 int gps_sat_count = 0;
 
-#include "driver/pcnt.h" // ESP32 library for pulse count
-// e.g. stored in following path C:\Users\User\Documents\Arduino\hardware\arduino-esp32-master\tools\sdk\include\driver\driver\pcnt.h
-// when in the Arduino IDE properties the sketchbook storage location is set to C:\Users\User\Documents\Arduino
-#define PCNT_FREQ_UNIT_SPD PCNT_UNIT_0 // select ESP32 pulse counter unit 0 (out of 0 to 7 indipendent counting units)
-#define PCNT_FREQ_UNIT_RPM PCNT_UNIT_1 // select ESP32 pulse counter unit 0 (out of 0 to 7 indipendent counting units)
-// https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/pcnt.html
-
-int SPD_INPUT_PIN = 33;
-int RPM_INPUT_PIN = 32;
-int16_t PulseCounter_SPD = 0;    // pulse counter, max. value is 65536
-int OverflowCounter_SPD = 0;     // pulse counter overflow counter
-int16_t PulseCounter_RPM = 0;    // pulse counter, max. value is 65536
-int OverflowCounter_RPM = 0;     // pulse counter overflow counter
-int PCNT_H_LIM_VAL = 10000;      // upper limit of counting  max. 32767, write +1 to overflow counter, when reached
-uint16_t PCNT_FILTER_VAL = 1000; // filter (damping, inertia) value for avoiding glitches in the count, max. 1023
-
-pcnt_isr_handle_t user_isr_handle = NULL; // interrupt handler - not used
-void IRAM_ATTR CounterOverflow_SPD(void *arg)
-{                                                  // Interrupt for overflow of pulse counter
-    OverflowCounter_SPD = OverflowCounter_SPD + 1; // increase overflow counter
-    PCNT.int_clr.val = BIT(PCNT_FREQ_UNIT_SPD);    // clean overflow flag
-    pcnt_counter_clear(PCNT_FREQ_UNIT_SPD);        // zero and reset of pulse counter unit
-}
-void IRAM_ATTR CounterOverflow_RPM(void *arg)
-{                                                  // Interrupt for overflow of pulse counter
-    OverflowCounter_RPM = OverflowCounter_RPM + 1; // increase overflow counter
-    PCNT.int_clr.val = BIT(PCNT_FREQ_UNIT_RPM);    // clean overflow flag
-    pcnt_counter_clear(PCNT_FREQ_UNIT_RPM);        // zero and reset of pulse counter unit
-}
-void initPulseCounter_SPD()
-{                                                      // initialise pulse counter
-    pcnt_config_t pcntFreqConfig_SPD = {};             // Instance of pulse counter
-    pcntFreqConfig_SPD.pulse_gpio_num = SPD_INPUT_PIN; // pin assignment for pulse counter = GPIO 15
-    pcntFreqConfig_SPD.pos_mode = PCNT_COUNT_INC;      // count rising edges (=change from low to high logical level) as pulses
-    pcntFreqConfig_SPD.counter_h_lim = PCNT_H_LIM_VAL; // set upper limit of counting
-    pcntFreqConfig_SPD.unit = PCNT_FREQ_UNIT_SPD;      // select ESP32 pulse counter unit 0
-    pcntFreqConfig_SPD.channel = PCNT_CHANNEL_0;       // select channel 0 of pulse counter unit 0
-    pcnt_unit_config(&pcntFreqConfig_SPD);             // configur rigisters of the pulse counter
-
-    pcnt_counter_pause(PCNT_FREQ_UNIT_SPD); // pause puls counter unit
-    pcnt_counter_clear(PCNT_FREQ_UNIT_SPD); // zero and reset of pulse counter unit
-
-    pcnt_event_enable(PCNT_FREQ_UNIT_SPD, PCNT_EVT_H_LIM);             // enable event for interrupt on reaching upper limit of counting
-    pcnt_isr_register(CounterOverflow_SPD, NULL, 0, &user_isr_handle); // configure register overflow interrupt handler
-    pcnt_intr_enable(PCNT_FREQ_UNIT_SPD);                              // enable overflow interrupt
-
-    pcnt_set_filter_value(PCNT_FREQ_UNIT_SPD, PCNT_FILTER_VAL); // set damping, inertia
-    pcnt_filter_enable(PCNT_FREQ_UNIT_SPD);                     // enable counter glitch filter (damping)
-
-    pcnt_counter_resume(PCNT_FREQ_UNIT_SPD); // resume counting on pulse counter unit
-}
-void initPulseCounter_RPM()
-{                                                      // initialise pulse counter
-    pcnt_config_t pcntFreqConfig_RPM = {};             // Instance of pulse counter
-    pcntFreqConfig_RPM.pulse_gpio_num = RPM_INPUT_PIN; // pin assignment for pulse counter = GPIO 15
-    pcntFreqConfig_RPM.pos_mode = PCNT_COUNT_INC;      // count rising edges (=change from low to high logical level) as pulses
-    pcntFreqConfig_RPM.counter_h_lim = PCNT_H_LIM_VAL; // set upper limit of counting
-    pcntFreqConfig_RPM.unit = PCNT_FREQ_UNIT_RPM;      // select ESP32 pulse counter unit 0
-    pcntFreqConfig_RPM.channel = PCNT_CHANNEL_1;       // select channel 0 of pulse counter unit 0
-    pcnt_unit_config(&pcntFreqConfig_RPM);             // configur rigisters of the pulse counter
-
-    pcnt_counter_pause(PCNT_FREQ_UNIT_RPM); // pause puls counter unit
-    pcnt_counter_clear(PCNT_FREQ_UNIT_RPM); // zero and reset of pulse counter unit
-
-    pcnt_event_enable(PCNT_FREQ_UNIT_RPM, PCNT_EVT_H_LIM);             // enable event for interrupt on reaching upper limit of counting
-    pcnt_isr_register(CounterOverflow_RPM, NULL, 0, &user_isr_handle); // configure register overflow interrupt handler
-    pcnt_intr_enable(PCNT_FREQ_UNIT_RPM);                              // enable overflow interrupt
-
-    pcnt_set_filter_value(PCNT_FREQ_UNIT_RPM, PCNT_FILTER_VAL); // set damping, inertia
-    pcnt_filter_enable(PCNT_FREQ_UNIT_RPM);                     // enable counter glitch filter (damping)
-
-    pcnt_counter_resume(PCNT_FREQ_UNIT_RPM); // resume counting on pulse counter unit
-}
-void Read_Reset_PCNT_SPD()
-{                                                                  // function for reading pulse counter (for timer)
-    pcnt_get_counter_value(PCNT_FREQ_UNIT_SPD, &PulseCounter_SPD); // get pulse counter value - maximum value is 16 bits
-
-    // resetting counter as if example, delet for application in PiedPiperS
-    OverflowCounter_SPD = 0;                // set overflow counter to zero
-    pcnt_counter_clear(PCNT_FREQ_UNIT_SPD); // zero and reset of pulse counter unit
-}
-void Read_Reset_PCNT_RPM()
-{                                                                  // function for reading pulse counter (for timer)
-    pcnt_get_counter_value(PCNT_FREQ_UNIT_RPM, &PulseCounter_RPM); // get pulse counter value - maximum value is 16 bits
-
-    // resetting counter as if example, delet for application in PiedPiperS
-    OverflowCounter_RPM = 0;                // set overflow counter to zero
-    pcnt_counter_clear(PCNT_FREQ_UNIT_RPM); // zero and reset of pulse counter unit
-}
-
-void bootUpPrint(String textHere)
+void bootUpPrint(String textHere) //开机输出记录
 {
     Serial.println(textHere);
     u8g2log.print(textHere);
     u8g2log.print("\n");
 }
-void bootUpPrintWithLora(String textHere)
+void bootUpPrintWithLora(String textHere) //开机输出记录，带无线
 {
     Serial.println(textHere);
     Serial2.println(textHere);
@@ -291,7 +212,7 @@ void bootUpPrintWithLora(String textHere)
     u8g2log.print("\n");
 }
 
-void printRTCtime()
+void printRTCtime() //输出RTC芯片的时间
 {
     struct tm TimeInRTC;
 
@@ -305,13 +226,13 @@ void printRTCtime()
         TELL_EVERYONE_LN("RTC error")
     }
 }
-void printRAMtime()
+void printRAMtime() //输出内存的时间
 {
     TELL_EVERYONE_LN("RAM Time:")
     TELL_EVERYONE_LN(&time_in_RAM, "%F %T")
 }
 
-void RTCtoRAM()
+void RTCtoRAM()  //读取RTC的时间到内存
 {
     printRTCtime();
     printRAMtime();
@@ -332,7 +253,7 @@ void RTCtoRAM()
     }
     I2C_is_Busy = false;
 }
-void NTPtoRAM()
+void NTPtoRAM() //联网获取正确时间，需要WiFi
 {
     if (WiFi.status() == WL_CONNECTED)
     {
@@ -349,7 +270,7 @@ void NTPtoRAM()
     else
         TELL_EVERYONE_LN("wifi error")
 }
-void GPStoRAM()
+void GPStoRAM() //读取GPS时间
 {
     // gps.date, gps.time
     // !d.isValid()
@@ -357,7 +278,7 @@ void GPStoRAM()
     // sprintf(sz, "%02d/%02d/%02d ", d.month(), d.day(), d.year());
     // Serial.print(sz);
 }
-void RAMtoRTC()
+void RAMtoRTC() //写入时间至RTC，未测试
 {
     if (DS3231isOK)
     {
@@ -372,7 +293,7 @@ void RAMtoRTC()
         TELL_EVERYONE_LN("RAMtoRTC");
         time_t nowEpoch;
         time(&nowEpoch);
-        rtc.setEpoch(nowEpoch + 8 * 3600); //我们时区在+8区
+        rtc.setEpoch(nowEpoch - 8 * 3600); //我们时区在+8区
         I2C_is_Busy = false;
         printRAMtime();
         printRTCtime();

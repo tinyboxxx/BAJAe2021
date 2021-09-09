@@ -5,10 +5,6 @@ void setup(void)
 {
 
   btStop();                  //关闭蓝牙
-  pinMode(32, INPUT_PULLUP); //rpm 引脚
-  pinMode(33, INPUT_PULLUP); //SPD 引脚
-  initPulseCounter_RPM();
-  initPulseCounter_SPD();
   Serial.begin(115200);
   Serial.println("Booting");
   // OLED屏幕 ====================================
@@ -111,14 +107,13 @@ void setup(void)
   Wire.setClock(100000);
 
   // BTY ====================================
-  if (gauge.begin() == 0)
-  {
-    bootUpPrintWithLora("gauge begin successful!");
-  }
-  else
-  {
-    bootUpPrintWithLora("gauge begin failed!");
-  }
+
+
+  // Encoder ====================================
+  ESP32Encoder::useInternalWeakPullResistors=UP;
+	encoder_speed.attachSingle(27, 27); // SPD
+	encoder_rpm.attachSingle(34, 34); // RPM
+
 
   // BNO055姿态 ====================================
   if (!bno.begin()) // 初始化传感器
