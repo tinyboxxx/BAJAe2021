@@ -3,8 +3,7 @@
 
 void setup(void)
 {
-
-  btStop();                  //关闭蓝牙
+  btStop(); //关闭蓝牙
   Serial.begin(115200);
   Serial.println("Booting");
   // OLED屏幕 ====================================
@@ -33,12 +32,10 @@ void setup(void)
   }
 
   // CLI ====================================
-
   cli.setOnError(errorCallback); // Set error Callback
   Command turnoffwifi = cli.addCmd("turnoffwifi");
   Command turnonwifi = cli.addCmd("turnonwifi");
   bootUpPrint("CLI booted!");
-
 
   // WIFIOTA ====================================
 
@@ -96,24 +93,21 @@ void setup(void)
     bootUpPrint(WiFi.localIP().toString());
   }
   // GPS ====================================
-  Serial1.begin(9600, SERIAL_8N1, Serial1_RXPIN, Serial1_TXPIN); // GPS com
+  Serial1.begin(9600, SERIAL_8N1, Serial1_RXPIN, Serial1_TXPIN); // GPS
   bootUpPrint("GPS Serial 1 Begin!");
   // LORA ====================================
-  Serial2.begin(9600, SERIAL_8N1, Serial2_RXPIN, Serial2_TXPIN); // GPS com
+  Serial2.begin(9600, SERIAL_8N1, Serial2_RXPIN, Serial2_TXPIN); // Lora
   bootUpPrint("LORA Serial 2 Begin!");
 
   // I2C ====================================
   Wire.begin(I2C_SDA, I2C_SCL);
-  Wire.setClock(100000);
 
   // BTY ====================================
 
-
   // Encoder ====================================
-  ESP32Encoder::useInternalWeakPullResistors=UP;
-	encoder_speed.attachSingle(27, 27); // SPD
-	encoder_rpm.attachSingle(34, 34); // RPM
-
+  ESP32Encoder::useInternalWeakPullResistors = UP;
+  encoder_speed.attachSingle(27, 27); // SPD
+  encoder_rpm.attachSingle(34, 34);   // RPM
 
   // BNO055姿态 ====================================
   if (!bno.begin()) // 初始化传感器
@@ -129,7 +123,15 @@ void setup(void)
   }
 
   // LED =========================================
-  FastLED.addLeds<APA102, LED_DATA_PIN, LED_CLOCK_PIN, BGR>(leds, NUM_LEDS);
+
+  if (!mcp.begin_I2C())
+  {
+    TELL_EVERYONE_LN("MCP23X17 Error");
+  }
+  for (size_t i = 0; i < 12; i++)
+  {
+    mcp.pinMode(i, OUTPUT); // configure pin for output
+  }
 
   // 任务定义 ====================================
 

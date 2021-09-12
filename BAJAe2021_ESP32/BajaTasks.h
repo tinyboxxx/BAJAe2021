@@ -24,7 +24,7 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
     {
         vTaskDelayUntil(&xLastWakeTime, xFrequency); // 等待下一个周期。
 
-        if (isOTAing == 0)
+        if (isOTAing == 0) //正常运行中
         {
             if (BNO055isOK == true && I2C_is_Busy == false)
             {
@@ -51,7 +51,7 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             u8g2.drawLine(0, 37, 52, 37);  //横向中心线
             u8g2.drawLine(26, 11, 26, 63); //纵向中心线
             //u8g2.drawFrame(13, 24, 26, 26); //小圈,方的
-            u8g2.drawCircle(26, 37, 13, U8G2_DRAW_ALL); //小圈，圆的
+            u8g2.drawCircle(26, 37, 13, U8G2_DRAW_ALL); //小圈,圆的
             GFx_OLED = GFx * GFx_OLED_ZoomLevel;
             GFy_OLED = GFy * GFx_OLED_ZoomLevel;
             if (GFx_OLED > 26)
@@ -128,10 +128,6 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
 
             u8g2.sendBuffer(); //更新至屏幕
 
-            // 关闭灯条所有LED
-            for (int i = 0; i < NUM_LEDS; i++)
-                leds[i] = CRGB::Black;
-
             //开始计算速度
             if (setLEDtoSpeed == 1)
             {
@@ -143,24 +139,19 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             }
 
             // Turn the LED on
-            for (int i = 0; i < nShiftlightPos; i++)
+            for (int i = 0; i < 12; i++)
             {
-                if (nShiftlightPos >= RPM_Red_After)
+                if (i < nShiftlightPos)
                 {
-                    leds[i] = CRGB::Red;
-                }
-                else if (nShiftlightPos > RPM_Green_Before)
-                {
-                    leds[i] = CRGB::Blue;
+                    mcp.digitalWrite(i, HIGH);
                 }
                 else
                 {
-                    leds[i] = CRGB::Green;
+                    mcp.digitalWrite(i, LOW);
                 }
             }
-            FastLED.show();
         }
-        else
+        else //正在OTA中
         {
             u8g2.clearBuffer(); //清空屏幕
             char bufferStr[8];
@@ -188,31 +179,23 @@ void Task_GetGpsLora(void *pvParameters) // GPS刷新任务
     {
 
         vTaskDelayUntil(&xLastWakeTime, xFrequency); // 等待下一个周期
-        vTaskDelay(1);                               // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
         while (Serial1.available())
             gps.encode(Serial1.read()); /* Get GPS data */
 
-        gps_hdop = gps.hdop.hdop();
-        gps_speed = gps.speed.kmph();
-        gps_sat_count = gps.satellites.value();
+        gps_hdop = gps.hdop.hdop();             //GPS 精度，越低越好
+        gps_speed = gps.speed.kmph();           // GPS速度 kph
+        gps_sat_count = gps.satellites.value(); //GPS卫星数量
 
         if (Serial2.available())
         {
             String input = Serial2.readStringUntil('\n'); // Read out string from the serial monitor
             cli.parse(input);                             // Parse the user input into the CLI
         }
-        if (Serial.available())
-        {
-            String input = Serial.readStringUntil('\n'); // Read out string from the serial monitor
-            cli.parse(input);                            // Parse the user input into the CLI
-        }
         if (cli.errored())
         {
             CommandError cmdError = cli.getError();
-
             Serial2.print("ERROR: ");
             Serial2.println(cmdError.toString());
-
             if (cmdError.hasCommand())
             {
                 Serial2.print("Did you mean \"");
@@ -245,7 +228,6 @@ void Task_UpdateData(void *pvParameters) // 测时速、转速、姿态、SD卡�
         vTaskDelayUntil(&xLastWakeTime, xFrequency); // 等待下一个周期
         ArduinoOTA.handle();                         //OTA必须运行的检测语句
 
-
         // DEBUG_PRINTLN((millis() - lastmSec))
         SPD = SPD_Calc_Factor * (PulseCounter_SPD - lastPulseCounter_SPD) / (millis() - lastmSec);
         RPM = RPM_Calc_Factor * (PulseCounter_RPM - lastPulseCounter_RPM) / (millis() - lastmSec);
@@ -257,15 +239,12 @@ void Task_UpdateData(void *pvParameters) // 测时速、转速、姿态、SD卡�
     }
 }
 
-void Task_UpdateTime(void *pvParameters) //
+void Task_UpdateTime(void *pvParameters) //时间更新任务，1秒钟更新1次。
 {
     (void)pvParameters;
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 999;
-
-    // 用当前时间初始化xLastWakeTime变量。
-    xLastWakeTime = xTaskGetTickCount();
-
+    xLastWakeTime = xTaskGetTickCount(); // 用当前时间初始化xLastWakeTime变量。
     for (;;)
     {
         // 等待下一个周期
@@ -281,7 +260,6 @@ void Task_UpdateTime(void *pvParameters) //
             // {
             //     //get time from gps
             // }
-
         }
         if (getLocalTime(&time_in_RAM)) // update time From ESP32 to RAM
         {

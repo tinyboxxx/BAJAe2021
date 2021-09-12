@@ -1,4 +1,6 @@
 //本文件为ino顶部的引用和初始化部分。
+// TODO:
+//
 
 #define DEBUG
 
@@ -49,9 +51,6 @@ sensors_event_t linearAccelData; //BNO event
 #define I2C_SCL 2
 //BNO055 address: 41 (0x29)
 
-
-
-
 // WIFIOTA ====================================
 #include <WiFi.h>
 #include <ESPmDNS.h>
@@ -66,27 +65,25 @@ const long gmtOffset_sec = 28800; //Replace with your GMT offset (seconds) 8 * 6
 
 //https://github.com/adafruit/Adafruit-MCP23017-Arduino-Library/
 
-
+#include <Adafruit_MCP23X17.h>
+Adafruit_MCP23X17 mcp;
 
 #define RPM_Display_MIN 1500
 #define RPM_Display_MAX 3750
 #define SPD_Display_MIN 3
 #define SPD_Display_MAX 60
 int nShiftlightPos = 0;
-int RPM_Green_Before = 3;
-int RPM_Red_After = 8;
 
 // OLED屏幕 ====================================
 U8G2_SSD1322_NHD_256X64_F_4W_HW_SPI u8g2(U8G2_R0, /* cs=*/5, /* dc=*/12, /* reset=*/14); // Enable U8G2_16BIT in u8g2.h
 
 // OLED log ====================================
-// Create a U8x8log object
-U8G2LOG u8g2log;
+U8G2LOG u8g2log; // Create a U8x8log object
 // Define the dimension of the U8x8log window
 #define U8LOG_WIDTH 32
 #define U8LOG_HEIGHT 8
-// Allocate static memory for the U8x8log window
-uint8_t u8log_buffer[U8LOG_WIDTH * U8LOG_HEIGHT];
+
+uint8_t u8log_buffer[U8LOG_WIDTH * U8LOG_HEIGHT]; // Allocate static memory for the U8x8log window
 
 // GPS ====================================
 #define Serial1_RXPIN 21           //to GPS TX
@@ -152,8 +149,6 @@ void errorCallback(cmd_error *e) // Callback in case of an error
 
 ESP32Encoder encoder_speed;
 ESP32Encoder encoder_rpm;
-
-
 
 // Stats 状态变量 ====================================
 bool setLEDtoSpeed = false; // 1:SPEED 0:RPM
@@ -232,7 +227,7 @@ void printRAMtime() //输出内存的时间
     TELL_EVERYONE_LN(&time_in_RAM, "%F %T")
 }
 
-void RTCtoRAM()  //读取RTC的时间到内存
+void RTCtoRAM() //读取RTC的时间到内存
 {
     printRTCtime();
     printRAMtime();
