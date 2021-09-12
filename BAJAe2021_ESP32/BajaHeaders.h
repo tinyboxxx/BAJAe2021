@@ -1,6 +1,5 @@
-//本文件为ino顶部的引用和初始化部分。
 // TODO:
-//
+//本文件为ino顶部的引用和初始化部分。
 
 #define DEBUG
 
@@ -44,7 +43,7 @@ Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x29);
 sensors_event_t linearAccelData; //BNO event
 
 // GPS ====================================
-#include <TinyGPS++.h> // Tiny GPS Plus Library
+#include <TinyGPSPlus.h> // Tiny GPS Plus Library
 
 // I2C ====================================
 #define I2C_SDA 13
@@ -62,12 +61,8 @@ const char *ntpServer = "cn.ntp.org.cn";
 const long gmtOffset_sec = 28800; //Replace with your GMT offset (seconds) 8 * 60 * 60
 
 // LED灯条 =====================================
-
-//https://github.com/adafruit/Adafruit-MCP23017-Arduino-Library/
-
-#include <Adafruit_MCP23X17.h>
+#include <Adafruit_MCP23X17.h> //https://github.com/adafruit/Adafruit-MCP23017-Arduino-Library/
 Adafruit_MCP23X17 mcp;
-
 #define RPM_Display_MIN 1500
 #define RPM_Display_MAX 3750
 #define SPD_Display_MIN 3
@@ -82,7 +77,6 @@ U8G2LOG u8g2log; // Create a U8x8log object
 // Define the dimension of the U8x8log window
 #define U8LOG_WIDTH 32
 #define U8LOG_HEIGHT 8
-
 uint8_t u8log_buffer[U8LOG_WIDTH * U8LOG_HEIGHT]; // Allocate static memory for the U8x8log window
 
 // GPS ====================================
@@ -97,20 +91,14 @@ TinyGPSPlus gps; // 创建一个名为gps的TinyGPS++对象的实例。
 // sprintf(sz,"%02d/%02d/%02d ", d.month(), d.day(), d.year());
 
 // TIME ====================================
-struct tm time_in_RAM; //time in ESP32 RAM
 #include "time.h"
-#include <ErriezDS3231.h>
+#include <ErriezDS3231.h> //https://github.com/Erriez/ErriezDS3231
+struct tm time_in_RAM;    //time in ESP32 RAM
 ErriezDS3231 rtc;
 
 //BTRY ====================================
-
-int BTRYvoltage = 0;
-int BTRYpercentage = 0;
-
-// 函数的头文件
-long map(long x, long in_min, long in_max, long out_min, long out_max);
-int intMapping(int x, int in_min, int in_max, int out_min, int out_max);
-float floatMapping(float x, float in_min, float in_max, float out_min, float out_max);
+float BTRYvoltage = 0;  //电池电压
+int BTRYpercentage = 0; //电池剩余电量，0~100
 
 // LORA ====================================
 #define Serial2_RXPIN 16 //to LORA TX
@@ -146,7 +134,6 @@ void errorCallback(cmd_error *e) // Callback in case of an error
 //https://github.com/madhephaestus/ESP32Encoder
 
 #include <ESP32Encoder.h>
-
 ESP32Encoder encoder_speed;
 ESP32Encoder encoder_rpm;
 
@@ -178,11 +165,6 @@ bool I2C_is_Busy = false;
 unsigned int RPM = 0;
 unsigned int SPD = 0; //千米每小时
 
-unsigned int SUS_LF = 0; //减振器，ADC值，0->4096
-unsigned int SUS_RF = 0;
-unsigned int SUS_LR = 0;
-unsigned int SUS_RR = 0;
-
 float GFx = 0;
 float GFy = 0;
 int GFx_OLED = 0;
@@ -199,7 +181,7 @@ void bootUpPrint(String textHere) //开机输出记录
     u8g2log.print(textHere);
     u8g2log.print("\n");
 }
-void bootUpPrintWithLora(String textHere) //开机输出记录，带无线
+void bootUpPrintWithLora(String textHere) //开机输出记录，带无线输出
 {
     Serial.println(textHere);
     Serial2.println(textHere);
@@ -210,7 +192,6 @@ void bootUpPrintWithLora(String textHere) //开机输出记录，带无线
 void printRTCtime() //输出RTC芯片的时间
 {
     struct tm TimeInRTC;
-
     if (rtc.read(&TimeInRTC))
     {
         TELL_EVERYONE("RTC time:")
@@ -224,7 +205,8 @@ void printRTCtime() //输出RTC芯片的时间
 void printRAMtime() //输出内存的时间
 {
     TELL_EVERYONE_LN("RAM Time:")
-    TELL_EVERYONE_LN(&time_in_RAM, "%F %T")
+    // TELL_EVERYONE_LN(&time_in_RAM, "%F %T")
+    // 现在这里还没搞好
 }
 
 void RTCtoRAM() //读取RTC的时间到内存
@@ -248,6 +230,22 @@ void RTCtoRAM() //读取RTC的时间到内存
     }
     I2C_is_Busy = false;
 }
+void RAMtoRTC() //写入时间至RTC，未测试
+{
+    if (DS3231isOK)
+    {
+        printRAMtime();
+        printRTCtime();
+        I2C_is_Busy = true;
+        TELL_EVERYONE_LN("RAMtoRTC");
+        time_t nowEpoch;
+        time(&nowEpoch);
+        rtc.setEpoch(nowEpoch - 8 * 3600); //我们时区在+8区
+        I2C_is_Busy = false;
+        printRAMtime();
+        printRTCtime();
+    }
+}
 void NTPtoRAM() //联网获取正确时间，需要WiFi
 {
     if (WiFi.status() == WL_CONNECTED)
@@ -258,7 +256,6 @@ void NTPtoRAM() //联网获取正确时间，需要WiFi
         timeSyncedFromNTP = true;
         getLocalTime(&time_in_RAM); //连接服务器更新时间
         printRAMtime();
-
         RAMtoRTC();
         wifiNeverConnected = false;
     }
@@ -273,24 +270,9 @@ void GPStoRAM() //读取GPS时间
     // sprintf(sz, "%02d/%02d/%02d ", d.month(), d.day(), d.year());
     // Serial.print(sz);
 }
-void RAMtoRTC() //写入时间至RTC，未测试
-{
-    if (DS3231isOK)
-    {
-        printRAMtime();
-        printRTCtime();
-        while (I2C_is_Busy)
-        {
-            TELL_EVERYONE_LN("I2C_is_Busy");
-            //wait
-        }
-        I2C_is_Busy = true;
-        TELL_EVERYONE_LN("RAMtoRTC");
-        time_t nowEpoch;
-        time(&nowEpoch);
-        rtc.setEpoch(nowEpoch - 8 * 3600); //我们时区在+8区
-        I2C_is_Busy = false;
-        printRAMtime();
-        printRTCtime();
-    }
-}
+
+
+// 函数的头文件
+long map(long x, long in_min, long in_max, long out_min, long out_max);
+int intMapping(int x, int in_min, int in_max, int out_min, int out_max);
+float floatMapping(float x, float in_min, float in_max, float out_min, float out_max);

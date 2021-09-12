@@ -86,17 +86,15 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             u8g2.drawStr(222, 25, "RPM");
 
             u8g2.setFont(u8g2_font_6x10_mr); //日期时间显示
-
             u8g2.setCursor(97, 55);
             u8g2.print(&time_in_RAM, "%F");
             u8g2.setCursor(103, 64);
             u8g2.print(&time_in_RAM, "%T");
 
-            if (WiFi.waitForConnectResult() != WL_CONNECTE)
-                drawSignal(u8g2, 180, 12, 4); //满格信号，三格
+            // if (WiFi.waitForConnectResult() != WL_CONNECTE)
+            //     drawSignal(u8g2, 180, 12, 4); //满格信号，三格
 
             u8g2.setFont(u8g2_font_siji_t_6x10);
-
             if (BTRYpercentage > 80)
             {
                 u8g2.drawGlyph(194, 12, 0xe254); //full
@@ -128,20 +126,18 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
 
             u8g2.sendBuffer(); //更新至屏幕
 
-            //开始计算速度
-            if (setLEDtoSpeed == 1)
+            if (setLEDtoSpeed == 1) //开始计算LED灯
             {
-                nShiftlightPos = intMapping(SPD, SPD_Display_MIN, SPD_Display_MAX, 0, NUM_LEDS);
+                nShiftlightPos = intMapping(SPD, SPD_Display_MIN, SPD_Display_MAX, 0, 12);
             }
             else
             {
-                nShiftlightPos = intMapping(RPM, RPM_Display_MIN, RPM_Display_MAX, 0, NUM_LEDS);
+                nShiftlightPos = intMapping(RPM, RPM_Display_MIN, RPM_Display_MAX, 0, 12);
             }
 
-            // Turn the LED on
-            for (int i = 0; i < 12; i++)
+            for (int i = 0; i < 12; i++) // Turn the LED on
             {
-                if (i < nShiftlightPos)
+                if (i <= nShiftlightPos)
                 {
                     mcp.digitalWrite(i, HIGH);
                 }
@@ -213,8 +209,11 @@ void Task_UpdateData(void *pvParameters) // 测时速、转速、姿态、SD卡�
     const TickType_t xFrequency = 8;
     xLastWakeTime = xTaskGetTickCount(); // 用当前时间初始化xLastWakeTime变量。
 
+    int mSec = 0;
     int lastmSec = 0;
 
+    int PulseCounter_SPD;
+    int PulseCounter_RPM;
     int lastPulseCounter_SPD = 0;
     float SPD_freq_in_mHz = 0.0;
     float SPD_Calc_Factor = 105.3; //频率换算系数，计算方法见excel表
@@ -226,20 +225,27 @@ void Task_UpdateData(void *pvParameters) // 测时速、转速、姿态、SD卡�
     for (;;)
     {
         vTaskDelayUntil(&xLastWakeTime, xFrequency); // 等待下一个周期
-        ArduinoOTA.handle();                         //OTA必须运行的检测语句
+        // ArduinoOTA.handle();                         //OTA必须运行的检测语句
+
+        PulseCounter_SPD = (int32_t)encoder_speed.getCount();
+        PulseCounter_RPM = (int32_t)encoder_rpm.getCount();
 
         // DEBUG_PRINTLN((millis() - lastmSec))
-        SPD = SPD_Calc_Factor * (PulseCounter_SPD - lastPulseCounter_SPD) / (millis() - lastmSec);
-        RPM = RPM_Calc_Factor * (PulseCounter_RPM - lastPulseCounter_RPM) / (millis() - lastmSec);
+        mSec = millis();
+        SPD = SPD_Calc_Factor * (PulseCounter_SPD - lastPulseCounter_SPD) / (mSec - lastmSec);
+        RPM = RPM_Calc_Factor * (PulseCounter_RPM - lastPulseCounter_RPM) / (mSec - lastmSec);
         lastPulseCounter_RPM = PulseCounter_RPM;
         lastPulseCounter_SPD = PulseCounter_SPD;
-        lastmSec = millis();
+        lastmSec = mSec;
 
         vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
     }
 }
 
-void Task_UpdateTime(void *pvParameters) //时间更新任务，1秒钟更新1次。
+//时间更新任务
+//时间的准确性排序：GPS、NTP、RTC、RAM
+//时间的效率排序：RAM、RTC、NTP、GPS
+void Task_UpdateTime(void *pvParameters) //时间更新任务，1秒钟更新1次。电量更新
 {
     (void)pvParameters;
     TickType_t xLastWakeTime;
@@ -269,21 +275,10 @@ void Task_UpdateTime(void *pvParameters) //时间更新任务，1秒钟更新1�
         {
             Serial.println("Failed to obtain time");
         }
-        if (I2C_is_Busy == false)
-        {
-            I2C_is_Busy = true;
-            int temp1 = gauge.readPercentage();
-            if (temp1 <= 100 && temp1 > 0)
-            {
-                BTRYpercentage = temp1;
-            }
-            int temp2 = gauge.readVoltage();
-            if (temp2 < 5000 && temp2 > 0)
-            {
-                BTRYvoltage = temp2;
-            }
-            I2C_is_Busy = false;
-        }
+
+        // BTRYvoltage=analogRead(35)/4095*3.3*2;
+        BTRYvoltage = analogRead(35) * 0.0016117;
+        BTRYpercentage = floatMapping(BTRYvoltage, 2.8, 3.6, 0, 100);
     }
 }
 
