@@ -10,7 +10,7 @@
 void setup()
 {
   Serial.begin (115200);  
-  Wire.begin (13, 4);   // sda= GPIO_21 /scl= GPIO_22
+  Wire.begin (33, 4);   // sda= GPIO_21 /scl= GPIO_22
 }
 
 void Scanner ()
