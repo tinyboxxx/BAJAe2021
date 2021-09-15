@@ -38,7 +38,7 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             }
 
             u8g2.clearBuffer(); //清空屏幕
-
+            Serial.println("oled clearbuffer");
             u8g2.setFont(u8g2_font_5x7_tr);
             char PrinterStr[20];
             sprintf(PrinterStr, "X%04.1f Y%04.1f", GFx, GFy);
@@ -125,7 +125,7 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             u8g2.drawStr(180, 64, bufferStr4);
 
             u8g2.sendBuffer(); //更新至屏幕
-
+            Serial.println("oled sendBuffer");
             if (setLEDtoSpeed == 1) //开始计算LED灯
             {
                 nShiftlightPos = intMapping(SPD, SPD_Display_MIN, SPD_Display_MAX, 0, 12);
@@ -227,8 +227,8 @@ void Task_UpdateData(void *pvParameters) // 测时速、转速、姿态、SD卡�
         vTaskDelayUntil(&xLastWakeTime, xFrequency); // 等待下一个周期
         // ArduinoOTA.handle();                         //OTA必须运行的检测语句
 
-        PulseCounter_SPD = (int32_t)encoder_speed.getCount();
-        PulseCounter_RPM = (int32_t)encoder_rpm.getCount();
+        // PulseCounter_SPD = (int32_t)encoder_speed.getCount();
+        // PulseCounter_RPM = (int32_t)encoder_rpm.getCount();
 
         // DEBUG_PRINTLN((millis() - lastmSec))
         mSec = millis();
@@ -256,26 +256,26 @@ void Task_UpdateTime(void *pvParameters) //时间更新任务，1秒钟更新1�
     {
         // 等待下一个周期
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        if (I2C_is_Busy == false && DS3231isOK && timeSyncedFromNTP == false && timeSyncedFromGPS == false && timeSyncedFromRTC == false) //读取RTC的时间
-        {
-            RTCtoRAM();
-        }
+        // if (I2C_is_Busy == false && DS3231isOK && timeSyncedFromNTP == false && timeSyncedFromGPS == false && timeSyncedFromRTC == false) //读取RTC的时间
+        // {
+        //     RTCtoRAM();
+        // }
 
-        if (wifiNeverConnected == true)
-        {
-            // if (GPSconnected)
-            // {
-            //     //get time from gps
-            // }
-        }
-        if (getLocalTime(&time_in_RAM)) // update time From ESP32 to RAM
-        {
-            Serial.println(&time_in_RAM, "%F %T");
-        }
-        else
-        {
-            Serial.println("Failed to obtain time");
-        }
+        // if (wifiNeverConnected == true)
+        // {
+        //     // if (GPSconnected)
+        //     // {
+        //     //     //get time from gps
+        //     // }
+        // }
+        // if (getLocalTime(&time_in_RAM)) // update time From ESP32 to RAM
+        // {
+        //     Serial.println(&time_in_RAM, "%F %T");
+        // }
+        // else
+        // {
+        //     Serial.println("Failed to obtain time");
+        // }
 
         // BTRYvoltage=analogRead(35)/4095*3.3*2;
         BTRYvoltage = analogRead(35) * 0.0016117;

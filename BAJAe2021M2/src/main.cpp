@@ -19,101 +19,46 @@ void setup(void)
   u8g2log.begin(u8g2, U8LOG_WIDTH, U8LOG_HEIGHT, u8log_buffer); // 启动U8x8log，连接U8x8，设置维度，分配静态内存
   u8g2log.setRedrawMode(0);                                     // 0：用换行符更新屏幕，1：每个字符更新屏幕
   bootUpPrint("OLED booted!");
+  vTaskDelay(500);
   // I2C ====================================
   Wire.begin(I2C_SDA, I2C_SCL);
 
-  // LED =========================================
+  // // LED =========================================
 
-  if (!mcp.begin_I2C())
-  {
-    bootUpPrint("MCP23X17 Error!");
-  }
-  for (size_t i = 0; i < 16; i++)
-  {
-    mcp.pinMode(i, OUTPUT); // configure pin for output
-  }
-  mcp.digitalWrite(0, HIGH);
-  mcp.digitalWrite(1, HIGH);
-  bootUpPrint("MCP23X17 Error2!");
-  // LORA ====================================
-  Serial2.begin(9600, SERIAL_8N1, Serial2_RXPIN, Serial2_TXPIN); // Lora
-  mcp.pinMode(14, OUTPUT);
-  mcp.pinMode(15, OUTPUT);
-  mcp.digitalWrite(14, LOW);
-  mcp.digitalWrite(15, LOW);
-  bootUpPrint("LORA Serial 2 Begin!");
-  // TIME ====================================
-  if (rtc.begin()) // 初始化 RTC https://github.com/Erriez/ErriezDS3231
-  {
-    rtc.setSquareWave(SquareWaveDisable);
-    RTCtoRAM();
-  }
-  else
-  {
-    bootUpPrint(F("RTC not found"));
-    DS3231isOK = false;
-  }
+  // if (!mcp.begin_I2C())
+  // {
+  //   bootUpPrint("MCP23X17 Error!");
+  // }
+  // for (size_t i = 0; i < 16; i++)
+  // {
+  //   mcp.pinMode(i, OUTPUT); // configure pin for output
+  // }
+  // mcp.digitalWrite(0, HIGH);
+  // mcp.digitalWrite(1, HIGH);
+  // bootUpPrint("MCP23X17 Error2!");
+  // // LORA ====================================
+  // Serial2.begin(9600, SERIAL_8N1, Serial2_RXPIN, Serial2_TXPIN); // Lora
+  // mcp.pinMode(14, OUTPUT);
+  // mcp.pinMode(15, OUTPUT);
+  // mcp.digitalWrite(14, LOW);
+  // mcp.digitalWrite(15, LOW);
+  // bootUpPrint("LORA Serial 2 Begin!");
+  // // TIME ====================================
+  // if (rtc.begin()) // 初始化 RTC https://github.com/Erriez/ErriezDS3231
+  // {
+  //   rtc.setSquareWave(SquareWaveDisable);
+  //   RTCtoRAM();
+  // }
+  // else
+  // {
+  //   bootUpPrint(F("RTC not found"));
+  //   DS3231isOK = false;
+  // }
   // CLI ====================================
   cli.setOnError(errorCallback); // Set error Callback
   Command turnoffwifi = cli.addCmd("turnoffwifi");
   Command turnonwifi = cli.addCmd("turnonwifi");
   bootUpPrint("CLI booted!");
-
-  // WIFIOTA ====================================
-  /*
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  bootUpPrint("WiFi booted!");
-  if (WiFi.waitForConnectResult() != WL_CONNECTED) //WIFI 连接失败
-  {
-    wifi_connected = 0;
-    Serial.println("Connection Failed!");
-    bootUpPrint("WiFi Connection Failed!");
-  }
-  else //WiFi连接成功
-  {
-    wifi_connected = 1;
-    bootUpPrint("WiFi wifi_connected! IP address:");
-    bootUpPrint(WiFi.localIP().toString());
-  }
-  ArduinoOTA
-      .onStart([]()
-               {
-                 String type;
-                 if (ArduinoOTA.getCommand() == U_FLASH)
-                   type = "sketch";
-                 else // U_SPIFFS
-                   type = "filesystem";
-
-                 // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-                 Serial.println("Start updating " + type);
-               })
-      .onEnd([]()
-             { Serial.println("\nEnd"); })
-      .onProgress([](unsigned int progress, unsigned int total)
-                  {
-                    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-                    isOTAing = 1;
-                    OTAprogress = progress;
-                    OTAtotal = total;
-                  })
-      .onError([](ota_error_t error)
-               {
-                 Serial.printf("Error[%u]: ", error);
-                 if (error == OTA_AUTH_ERROR)
-                   Serial.println("Auth Failed");
-                 else if (error == OTA_BEGIN_ERROR)
-                   Serial.println("Begin Failed");
-                 else if (error == OTA_CONNECT_ERROR)
-                   Serial.println("Connect Failed");
-                 else if (error == OTA_RECEIVE_ERROR)
-                   Serial.println("Receive Failed");
-                 else if (error == OTA_END_ERROR)
-                   Serial.println("End Failed");
-               });
-
-  ArduinoOTA.begin();
-  */
 
   // GPS ====================================
   Serial1.begin(9600, SERIAL_8N1, Serial1_RXPIN, Serial1_TXPIN); // GPS
@@ -125,20 +70,20 @@ void setup(void)
   // Encoder ====================================
   // https://github.com/madhephaestus/ESP32Encoder
   ESP32Encoder::useInternalWeakPullResistors = UP;
-  encoder_speed.attachSingleEdge(27, 27); // SPD
-  encoder_rpm.attachSingleEdge(34, 34);   // RPM
+  // encoder_speed.attachSingleEdge(27, 27); // SPD
+  // encoder_rpm.attachSingleEdge(34, 34);   // RPM
 
   // BNO055姿态 ====================================
-  if (!bno.begin()) // 初始化传感器
-  {
-    bootUpPrintWithLora("BNO055 Booted!");
-    bno.setExtCrystalUse(true); //使用外部晶振以获得更好的精度
-  }
-  else
-  {
-    bootUpPrintWithLora("ERR no BNO055 detected"); // 检测BNO055时出现问题...请检查您的连接
-    BNO055isOK = false;
-  }
+  // if (!bno.begin()) // 初始化传感器
+  // {
+  //   bootUpPrintWithLora("BNO055 Booted!");
+  //   bno.setExtCrystalUse(true); //使用外部晶振以获得更好的精度
+  // }
+  // else
+  // {
+  //   bootUpPrintWithLora("ERR no BNO055 detected"); // 检测BNO055时出现问题...请检查您的连接
+  //   BNO055isOK = false;
+  // }
 
   // 任务定义 ====================================
   // xTaskCreate(
