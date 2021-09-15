@@ -38,7 +38,6 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             }
 
             u8g2.clearBuffer(); //清空屏幕
-            Serial.println("oled clearbuffer");
             u8g2.setFont(u8g2_font_5x7_tr);
             char PrinterStr[20];
             sprintf(PrinterStr, "X%04.1f Y%04.1f", GFx, GFy);
@@ -125,7 +124,6 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             u8g2.drawStr(180, 64, bufferStr4);
 
             u8g2.sendBuffer(); //更新至屏幕
-            Serial.println("oled sendBuffer");
             if (setLEDtoSpeed == 1) //开始计算LED灯
             {
                 nShiftlightPos = intMapping(SPD, SPD_Display_MIN, SPD_Display_MAX, 0, 12);
@@ -135,17 +133,17 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
                 nShiftlightPos = intMapping(RPM, RPM_Display_MIN, RPM_Display_MAX, 0, 12);
             }
 
-            for (int i = 0; i < 12; i++) // Turn the LED on
-            {
-                if (i <= nShiftlightPos)
-                {
-                    mcp.digitalWrite(i, HIGH);
-                }
-                else
-                {
-                    mcp.digitalWrite(i, LOW);
-                }
-            }
+            // for (int i = 0; i < 12; i++) // Turn the LED on
+            // {
+            //     if (i <= nShiftlightPos)
+            //     {
+            //         mcp.digitalWrite(i, HIGH);
+            //     }
+            //     else
+            //     {
+            //         mcp.digitalWrite(i, LOW);
+            //     }
+            // }
         }
         else //正在OTA中
         {

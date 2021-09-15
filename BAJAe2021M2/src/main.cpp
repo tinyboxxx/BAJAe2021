@@ -19,34 +19,58 @@ void setup(void)
   u8g2log.begin(u8g2, U8LOG_WIDTH, U8LOG_HEIGHT, u8log_buffer); // 启动U8x8log，连接U8x8，设置维度，分配静态内存
   u8g2log.setRedrawMode(0);                                     // 0：用换行符更新屏幕，1：每个字符更新屏幕
   bootUpPrint("OLED booted!");
-  vTaskDelay(500);
   // I2C ====================================
   Wire.begin(I2C_SDA, I2C_SCL);
+  Wire.setClock(400000);
+  // LED =========================================
+  Wire.beginTransmission(0x20);
+  Wire.write(0x05); // IODIRA register
+  Wire.write(0x00); // set all of port A to outputs
+  Wire.endTransmission();
 
-  // // LED =========================================
+  Wire.beginTransmission(0x20);
+  Wire.write(0x00); // IODIRA register
+  Wire.write(0x00); // set all of port A to outputs
+  Wire.endTransmission();
 
-  // if (!mcp.begin_I2C())
-  // {
-  //   bootUpPrint("MCP23X17 Error!");
-  // }
-  // for (size_t i = 0; i < 16; i++)
-  // {
-  //   mcp.pinMode(i, OUTPUT); // configure pin for output
-  // }
-  // mcp.digitalWrite(0, HIGH);
-  // mcp.digitalWrite(1, HIGH);
-  // bootUpPrint("MCP23X17 Error2!");
-  // // LORA ====================================
+  Wire.beginTransmission(0x20);
+  Wire.write(0x01); // IODIRB register
+  Wire.write(0x00); // set all of port B to outputs
+  Wire.endTransmission();
+
+  Wire.beginTransmission(0x20);
+  Wire.write(0x12);       // address bank A
+  Wire.write((byte)0xFF); // value to send - all HIGH
+  Wire.endTransmission();
+
+  Wire.beginTransmission(0x20);
+  Wire.write(0x13);       // address bank B
+  Wire.write((byte)0x0F); // value to send - all LED HIGH
+  // 0000 1111 -> 0F
+  // ^GPB7   ^GBP0
+  Wire.endTransmission();
+
+  vTaskDelay(200);
+
+  Wire.beginTransmission(0x20);
+  Wire.write(0x12);       // address bank A
+  Wire.write((byte)0x00); // value to send - all LOW
+  Wire.endTransmission();
+
+  Wire.beginTransmission(0x20);
+  Wire.write(0x13);       // address bank B
+  Wire.write((byte)0x00); // value to send - all LOW
+  Wire.endTransmission();
+
+  // LORA ====================================
   // Serial2.begin(9600, SERIAL_8N1, Serial2_RXPIN, Serial2_TXPIN); // Lora
-  // mcp.pinMode(14, OUTPUT);
-  // mcp.pinMode(15, OUTPUT);
-  // mcp.digitalWrite(14, LOW);
-  // mcp.digitalWrite(15, LOW);
-  // bootUpPrint("LORA Serial 2 Begin!");
-  // // TIME ====================================
+  // bootUpPrint("LORA Serial 2 Begin!");                           // need MCP BPIB 6&7 LOW
+
+  // TIME ====================================
   // if (rtc.begin()) // 初始化 RTC https://github.com/Erriez/ErriezDS3231
   // {
   //   rtc.setSquareWave(SquareWaveDisable);
+  //     bootUpPrint(F("RTC OK.Time now:"))
   //   RTCtoRAM();
   // }
   // else

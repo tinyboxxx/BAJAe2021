@@ -61,8 +61,9 @@ const char *ntpServer = "cn.ntp.org.cn";
 const long gmtOffset_sec = 28800; //Replace with your GMT offset (seconds) 8 * 60 * 60
 
 // LED灯条 =====================================
-#include <Adafruit_MCP23X17.h> //https://github.com/adafruit/Adafruit-MCP23017-Arduino-Library/
-Adafruit_MCP23X17 mcp;
+// http://www.esp32learning.com/code/esp32-and-mcp23017-flashy-led-example.php
+
+
 #define RPM_Display_MIN 1500
 #define RPM_Display_MAX 3750
 #define SPD_Display_MIN 3
@@ -101,8 +102,8 @@ float BTRYvoltage = 0;  //电池电压
 int BTRYpercentage = 0; //电池剩余电量，0~100
 
 // LORA ====================================
-#define Serial2_RXPIN 16 //to LORA TX
-#define Serial2_TXPIN 17 //to LORA RX
+// #define Serial2_RXPIN 16 //to LORA TX
+// #define Serial2_TXPIN 17 //to LORA RX
 
 // CLI ====================================
 #include <SimpleCLI.h> // Inlcude Library
@@ -270,7 +271,6 @@ void GPStoRAM() //读取GPS时间
     // sprintf(sz, "%02d/%02d/%02d ", d.month(), d.day(), d.year());
     // Serial.print(sz);
 }
-
 
 // 函数的头文件
 long map(long x, long in_min, long in_max, long out_min, long out_max);
