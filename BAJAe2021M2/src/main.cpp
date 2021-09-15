@@ -22,7 +22,9 @@ void setup(void)
   // I2C ====================================
   Wire.begin(I2C_SDA, I2C_SCL);
   Wire.setClock(400000);
+  bootUpPrint("I2C Begin!");
   // LED =========================================
+  bootUpPrint("Test LED");
   Wire.beginTransmission(0x20);
   Wire.write(0x05); // IODIRA register
   Wire.write(0x00); // set all of port A to outputs
@@ -61,23 +63,24 @@ void setup(void)
   Wire.write(0x13);       // address bank B
   Wire.write((byte)0x00); // value to send - all LOW
   Wire.endTransmission();
+  bootUpPrint("LED OK!");
 
   // LORA ====================================
-  // Serial2.begin(9600, SERIAL_8N1, Serial2_RXPIN, Serial2_TXPIN); // Lora
-  // bootUpPrint("LORA Serial 2 Begin!");                           // need MCP BPIB 6&7 LOW
+  Serial2.begin(9600, SERIAL_8N1, Serial2_RXPIN, Serial2_TXPIN); // Lora
+  bootUpPrint("LORA Serial 2 Begin!");                           // need MCP BPIB 6&7 LOW
 
   // TIME ====================================
-  // if (rtc.begin()) // 初始化 RTC https://github.com/Erriez/ErriezDS3231
-  // {
-  //   rtc.setSquareWave(SquareWaveDisable);
-  //     bootUpPrint(F("RTC OK.Time now:"))
-  //   RTCtoRAM();
-  // }
-  // else
-  // {
-  //   bootUpPrint(F("RTC not found"));
-  //   DS3231isOK = false;
-  // }
+  if (rtc.begin()) // 初始化 RTC https://github.com/Erriez/ErriezDS3231
+  {
+    rtc.setSquareWave(SquareWaveDisable);
+      bootUpPrint(F("RTC OK.Time now:"));
+    RTCtoRAM();
+  }
+  else
+  {
+    bootUpPrint(F("RTC not found"));
+    DS3231isOK = false;
+  }
   // CLI ====================================
   cli.setOnError(errorCallback); // Set error Callback
   Command turnoffwifi = cli.addCmd("turnoffwifi");

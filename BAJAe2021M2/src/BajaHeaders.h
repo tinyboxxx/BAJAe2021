@@ -46,9 +46,8 @@ sensors_event_t linearAccelData; //BNO event
 #include <TinyGPSPlus.h> // Tiny GPS Plus Library
 
 // I2C ====================================
-#define I2C_SDA 33
-#define I2C_SCL 4
-//BNO055 address: 41 (0x29)
+#define I2C_SDA 4
+#define I2C_SCL 33
 
 // WIFIOTA ====================================
 #include <WiFi.h>
@@ -62,7 +61,6 @@ const long gmtOffset_sec = 28800; //Replace with your GMT offset (seconds) 8 * 6
 
 // LED灯条 =====================================
 // http://www.esp32learning.com/code/esp32-and-mcp23017-flashy-led-example.php
-
 
 #define RPM_Display_MIN 1500
 #define RPM_Display_MAX 3750
@@ -102,8 +100,8 @@ float BTRYvoltage = 0;  //电池电压
 int BTRYpercentage = 0; //电池剩余电量，0~100
 
 // LORA ====================================
-// #define Serial2_RXPIN 16 //to LORA TX
-// #define Serial2_TXPIN 17 //to LORA RX
+#define Serial2_RXPIN 16 //to LORA TX
+#define Serial2_TXPIN 17 //to LORA RX
 
 // CLI ====================================
 #include <SimpleCLI.h> // Inlcude Library
@@ -160,8 +158,6 @@ bool timeSyncedFromNTP = false;
 bool timeSyncedFromRTC = false;
 bool timeSyncedFromGPS = false;
 
-bool I2C_is_Busy = false;
-
 //行车数据变量=============================
 unsigned int RPM = 0;
 unsigned int SPD = 0; //千米每小时
@@ -206,15 +202,24 @@ void printRTCtime() //输出RTC芯片的时间
 void printRAMtime() //输出内存的时间
 {
     TELL_EVERYONE_LN("RAM Time:")
+
     // TELL_EVERYONE_LN(&time_in_RAM, "%F %T")
     // 现在这里还没搞好
+    if (getLocalTime(&time_in_RAM)) // update time From ESP32 to RAM
+    {
+        Serial.println(&time_in_RAM, "%F %T");
+        Serial2.println(&time_in_RAM, "%F %T");
+    }
+    else
+    {
+        Serial.println("Failed to obtain time");
+    }
 }
 
 void RTCtoRAM() //读取RTC的时间到内存
 {
     printRTCtime();
     printRAMtime();
-    I2C_is_Busy = true;
     struct tm TimeInRTC;
     if (rtc.read(&TimeInRTC))
     {
@@ -229,7 +234,6 @@ void RTCtoRAM() //读取RTC的时间到内存
     {
         TELL_EVERYONE_LN("RTC error,RTCtoRAM FAIL")
     }
-    I2C_is_Busy = false;
 }
 void RAMtoRTC() //写入时间至RTC，未测试
 {
@@ -237,12 +241,10 @@ void RAMtoRTC() //写入时间至RTC，未测试
     {
         printRAMtime();
         printRTCtime();
-        I2C_is_Busy = true;
         TELL_EVERYONE_LN("RAMtoRTC");
         time_t nowEpoch;
         time(&nowEpoch);
         rtc.setEpoch(nowEpoch - 8 * 3600); //我们时区在+8区
-        I2C_is_Busy = false;
         printRAMtime();
         printRTCtime();
     }

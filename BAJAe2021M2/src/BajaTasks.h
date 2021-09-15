@@ -26,13 +26,11 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
 
         if (isOTAing == 0) //正常运行中
         {
-            if (BNO055isOK == true && I2C_is_Busy == false)
+            if (BNO055isOK == true)
             {
-                I2C_is_Busy = true;
                 bno.getEvent(&linearAccelData, Adafruit_BNO055::VECTOR_LINEARACCEL);
                 GFy = linearAccelData.acceleration.z;
                 GFx = linearAccelData.acceleration.y;
-                I2C_is_Busy = false;
                 //(float)linearAccelData.acceleration.y 是车前后
                 //(float)linearAccelData.acceleration.z 是车左右
             }
@@ -248,13 +246,13 @@ void Task_UpdateTime(void *pvParameters) //时间更新任务，1秒钟更新1�
 {
     (void)pvParameters;
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = 999;
+    const TickType_t xFrequency = 900;
     xLastWakeTime = xTaskGetTickCount(); // 用当前时间初始化xLastWakeTime变量。
     for (;;)
     {
         // 等待下一个周期
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        // if (I2C_is_Busy == false && DS3231isOK && timeSyncedFromNTP == false && timeSyncedFromGPS == false && timeSyncedFromRTC == false) //读取RTC的时间
+        // if (DS3231isOK && timeSyncedFromNTP == false && timeSyncedFromGPS == false && timeSyncedFromRTC == false) //读取RTC的时间
         // {
         //     RTCtoRAM();
         // }
@@ -266,19 +264,21 @@ void Task_UpdateTime(void *pvParameters) //时间更新任务，1秒钟更新1�
         //     //     //get time from gps
         //     // }
         // }
-        // if (getLocalTime(&time_in_RAM)) // update time From ESP32 to RAM
-        // {
-        //     Serial.println(&time_in_RAM, "%F %T");
-        // }
-        // else
-        // {
-        //     Serial.println("Failed to obtain time");
-        // }
+        if (getLocalTime(&time_in_RAM)) // update time From ESP32 to RAM
+        {
+            // Serial.println(&time_in_RAM, "%F %T");
+        }
+        else
+        {
+            Serial.println("time update error");
+        }
 
         // BTRYvoltage=analogRead(35)/4095*3.3*2;
         BTRYvoltage = analogRead(35) * 0.0016117;
         BTRYpercentage = floatMapping(BTRYvoltage, 2.8, 3.6, 0, 100);
-    }
+        DEBUG_PRINTLN(BTRYvoltage)
+        DEBUG_PRINTLN(BTRYpercentage)
+    } 
 }
 
 long map(long x, long in_min, long in_max, long out_min, long out_max)

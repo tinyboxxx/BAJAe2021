@@ -44,6 +44,8 @@
 |MAX17043|54 (0x36)|400 kHz|
 |ds3231|104 (0x68)|Fast mode 400 kHz, Standard 100 kHz|
 
+
+
 ## 时间
 
 - [ ] RTC同步至内存
