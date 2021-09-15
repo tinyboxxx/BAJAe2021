@@ -99,8 +99,8 @@ void setup(void)
   // Encoder ====================================
   // https://github.com/madhephaestus/ESP32Encoder
   ESP32Encoder::useInternalWeakPullResistors = UP;
-  // encoder_speed.attachSingleEdge(27, 27); // SPD
-  // encoder_rpm.attachSingleEdge(34, 34);   // RPM
+  encoder_speed.attachSingleEdge(27, 27); // SPD
+  encoder_rpm.attachSingleEdge(34, 34);   // RPM
 
   // BNO055姿态 ====================================
   // if (!bno.begin()) // 初始化传感器

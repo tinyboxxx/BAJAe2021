@@ -217,11 +217,9 @@ void Task_UpdateData(void *pvParameters) // 测时速、转速、姿态、SD卡�
     int PulseCounter_SPD;
     int PulseCounter_RPM;
     int lastPulseCounter_SPD = 0;
-    float SPD_freq_in_mHz = 0.0;
     float SPD_Calc_Factor = 105.3; //频率换算系数，计算方法见excel表
 
     int lastPulseCounter_RPM = 0;
-    float RPM_freq_in_mHz = 0.0;
     int RPM_Calc_Factor = 60000; //频率换算系数
 
     for (;;)
@@ -229,8 +227,8 @@ void Task_UpdateData(void *pvParameters) // 测时速、转速、姿态、SD卡�
         vTaskDelayUntil(&xLastWakeTime, xFrequency); // 等待下一个周期
         // ArduinoOTA.handle();                         //OTA必须运行的检测语句
 
-        // PulseCounter_SPD = (int32_t)encoder_speed.getCount();
-        // PulseCounter_RPM = (int32_t)encoder_rpm.getCount();
+        PulseCounter_SPD = (int32_t)encoder_speed.getCount();
+        PulseCounter_RPM = (int32_t)encoder_rpm.getCount();
 
         // DEBUG_PRINTLN((millis() - lastmSec))
         mSec = millis();
