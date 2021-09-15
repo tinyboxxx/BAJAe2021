@@ -274,10 +274,8 @@ void Task_UpdateTime(void *pvParameters) //时间更新任务，1秒钟更新1�
         }
 
         // BTRYvoltage=analogRead(35)/4095*3.3*2;
-        BTRYvoltage = analogRead(35) * 0.0016117;
+        BTRYvoltage = analogRead(35) * 0.001795;
         BTRYpercentage = floatMapping(BTRYvoltage, 2.8, 3.6, 0, 100);
-        DEBUG_PRINTLN(BTRYvoltage)
-        DEBUG_PRINTLN(BTRYpercentage)
     } 
 }
 
