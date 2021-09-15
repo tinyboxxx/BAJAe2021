@@ -121,7 +121,7 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             sprintf(bufferStr4, "%02d", fpsOLED);
             u8g2.drawStr(180, 64, bufferStr4);
 
-            u8g2.sendBuffer(); //更新至屏幕
+            u8g2.sendBuffer();      //更新至屏幕
             if (setLEDtoSpeed == 1) //开始计算LED灯
             {
                 nShiftlightPos = intMapping(SPD, SPD_Display_MIN, SPD_Display_MAX, 0, 12);
@@ -183,6 +183,12 @@ void Task_GetGpsLora(void *pvParameters) // GPS刷新任务
             String input = Serial2.readStringUntil('\n'); // Read out string from the serial monitor
             cli.parse(input);                             // Parse the user input into the CLI
         }
+        if (Serial.available())
+        {
+            String input = Serial.readStringUntil('\n'); // Read out string from the serial monitor
+            cli.parse(input);                            // Parse the user input into the CLI
+        }
+
         if (cli.errored())
         {
             CommandError cmdError = cli.getError();
@@ -276,7 +282,7 @@ void Task_UpdateTime(void *pvParameters) //时间更新任务，1秒钟更新1�
         // BTRYvoltage=analogRead(35)/4095*3.3*2;
         BTRYvoltage = analogRead(35) * 0.001795;
         BTRYpercentage = floatMapping(BTRYvoltage, 2.8, 3.6, 0, 100);
-    } 
+    }
 }
 
 long map(long x, long in_min, long in_max, long out_min, long out_max)

@@ -104,28 +104,61 @@ int BTRYpercentage = 0; //电池剩余电量，0~100
 #define Serial2_TXPIN 17 //to LORA RX
 
 // CLI ====================================
-#include <SimpleCLI.h> // Inlcude Library
-SimpleCLI cli;         // Create CLI Object
-void turnoffwifi()     // Callback function for cowsay command
+#include <SimpleCLI.h>   // Inlcude Library
+SimpleCLI cli;           // Create CLI Object
+void turnoffwifi(cmd *c) // Callback function for cowsay command
 {
+    Command cmd(c); // Create wrapper object
     WiFi.mode(WIFI_OFF);
 }
-void turnonwifi() // Callback function for cowsay command
+void turnonwifi(cmd *c) // Callback function for cowsay command
 {
+    Command cmd(c); // Create wrapper object
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
+}
+
+void Scanner(cmd *c)
+{
+    Command cmd(c); // Create wrapper object
+    Serial.println();
+    Serial.println("I2C scanner. Scanning ...");
+    byte count = 0;
+
+    for (byte i = 8; i < 120; i++)
+    {
+        Wire.beginTransmission(i);       // Begin I2C transmission Address (i)
+        if (Wire.endTransmission() == 0) // Receive 0 = success (ACK response)
+        {
+            Serial.print("Found address: ");
+            Serial.print(i, DEC);
+            Serial.print(" (0x");
+            Serial.print(i, HEX); // PCF8574 7 bit address
+            Serial.println(")");
+            count++;
+        }
+    }
+    Serial.print("Found ");
+    Serial.print(count, DEC); // numbers of devices
+    Serial.println(" device(s).");
 }
 
 void errorCallback(cmd_error *e) // Callback in case of an error
 {
     CommandError cmdError(e); // Create wrapper object
+    Serial.print("ERROR: ");
     Serial2.print("ERROR: ");
+    Serial.println(cmdError.toString());
     Serial2.println(cmdError.toString());
     if (cmdError.hasCommand())
     {
         Serial2.print("Did you mean \"");
         Serial2.print(cmdError.getCommand().toString());
         Serial2.println("\"?");
+
+        Serial.print("Did you mean \"");
+        Serial.print(cmdError.getCommand().toString());
+        Serial.println("\"?");
     }
 }
 
@@ -202,9 +235,6 @@ void printRTCtime() //输出RTC芯片的时间
 void printRAMtime() //输出内存的时间
 {
     TELL_EVERYONE_LN("RAM Time:")
-
-    // TELL_EVERYONE_LN(&time_in_RAM, "%F %T")
-    // 现在这里还没搞好
     if (getLocalTime(&time_in_RAM)) // update time From ESP32 to RAM
     {
         Serial.println(&time_in_RAM, "%F %T");
@@ -213,13 +243,13 @@ void printRAMtime() //输出内存的时间
     else
     {
         Serial.println("Failed to obtain time");
+        Serial2.println("Failed to obtain time");
     }
 }
 
 void RTCtoRAM() //读取RTC的时间到内存
 {
     printRTCtime();
-    printRAMtime();
     struct tm TimeInRTC;
     if (rtc.read(&TimeInRTC))
     {
@@ -227,7 +257,7 @@ void RTCtoRAM() //读取RTC的时间到内存
         struct timeval now = {.tv_sec = t};
         settimeofday(&now, NULL);
         timeSyncedFromRTC = true;
-        printRTCtime();
+        Serial.print("RTCtoRAM, new RAM Time:");
         printRAMtime();
     }
     else

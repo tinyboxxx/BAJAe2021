@@ -73,18 +73,20 @@ void setup(void)
   if (rtc.begin()) // 初始化 RTC https://github.com/Erriez/ErriezDS3231
   {
     rtc.setSquareWave(SquareWaveDisable);
-      bootUpPrint(F("RTC OK.Time now:"));
+    bootUpPrint(F("RTC OK.Time now:"));
     RTCtoRAM();
   }
   else
   {
-    bootUpPrint(F("RTC not found"));
+    bootUpPrint("RTC error");
     DS3231isOK = false;
   }
   // CLI ====================================
   cli.setOnError(errorCallback); // Set error Callback
-  Command turnoffwifi = cli.addCmd("turnoffwifi");
-  Command turnonwifi = cli.addCmd("turnonwifi");
+  Command turnoffwifi_Cmd = cli.addCmd("turnoffwifi",turnoffwifi);
+  Command turnonwifi_Cmd = cli.addCmd("turnonwifi",turnonwifi);
+  Command Scanner_Cmd = cli.addCmd("Scanner",Scanner);
+
   bootUpPrint("CLI booted!");
 
   // GPS ====================================
