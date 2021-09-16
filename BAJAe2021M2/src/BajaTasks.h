@@ -150,6 +150,9 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             //         mcp.digitalWrite(i, LOW);
             //     }
             // }
+
+            set_MCP(nShiftlightPos,lora_power_mode);
+
         }
         else //正在OTA中
         {

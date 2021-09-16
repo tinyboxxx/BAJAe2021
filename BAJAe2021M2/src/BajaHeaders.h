@@ -111,6 +111,16 @@ void turnonwifi(cmd *c) // Callback function for cowsay command
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
 }
+void loralowpower(cmd *c) // Callback function for cowsay command
+{
+    Command cmd(c); // Create wrapper object
+    lora_power_mode = 2;
+}
+void lorahighpower(cmd *c) // Callback function for cowsay command
+{
+    Command cmd(c); // Create wrapper object
+    lora_power_mode = 0;
+}
 
 void Scanner(cmd *c)
 {
@@ -185,6 +195,8 @@ bool timeSyncedFromNTP = false;
 bool timeSyncedFromRTC = false;
 bool timeSyncedFromGPS = false;
 
+int lora_power_mode = 0; // 0是正常功耗、2是低功耗。低功耗模式需要电脑端在1模式 唤醒模式，M0-1、M1-0。
+
 //行车数据变量=============================
 unsigned int RPM = 0;
 unsigned int SPD = 0; //千米每小时
@@ -229,7 +241,7 @@ void printRTCtime() //输出RTC芯片的时间
 void printRAMtime() //输出内存的时间
 {
     TELL_EVERYONE_LN("RAM Time:")
-    if (getLocalTime(&time_in_RAM)) // update time From ESP32 to RAM
+    if (getLocalTime(&time_in_RAM)) // 从本机内读取时间进内存
     {
         Serial.println(&time_in_RAM, "%F %T");
         Serial2.println(&time_in_RAM, "%F %T");
@@ -251,7 +263,6 @@ void RTCtoRAM() //读取RTC的时间到内存
         struct timeval now = {.tv_sec = t};
         settimeofday(&now, NULL);
         timeSyncedFromRTC = true;
-        Serial.print("RTCtoRAM, new RAM Time:");
         printRAMtime();
     }
     else
@@ -330,3 +341,120 @@ void IRAM_ATTR RPM_TRIGGERED()
 long map(long x, long in_min, long in_max, long out_min, long out_max);
 int intMapping(int x, int in_min, int in_max, int out_min, int out_max);
 float floatMapping(float x, float in_min, float in_max, float out_min, float out_max);
+
+set_MCP_send_cmd(int Channal_A, int Channal_B)
+{
+    Wire.beginTransmission(0x20);
+    Wire.write(0x12);            // address bank A
+    Wire.write((byte)Channal_A); // value to send - all HIGH
+    Wire.endTransmission();
+
+    Wire.beginTransmission(0x20);
+    Wire.write(0x13);            // address bank B
+    Wire.write((byte)Channal_B); // value to send - all LED HIGH
+    // 0000 1111 -> 0F
+    // ^GPB7   ^GBP0
+    Wire.endTransmission();
+}
+
+void set_MCP(int num_of_ON_LED, int lora_lowpower_mode)
+{
+    switch (lora_lowpower_mode)
+    {
+    case 0: // Lora正常高功耗工作状态
+        switch (num_of_ON_LED)
+        {
+        case 0:
+            set_MCP_send_cmd(0x00, 0x00);
+            break;
+        case 1:
+            set_MCP_send_cmd(0x01, 0x00);
+            break;
+        case 2:
+            set_MCP_send_cmd(0x03, 0x00);
+            break;
+        case 3:
+            set_MCP_send_cmd(0x07, 0x00);
+            break;
+        case 4:
+            set_MCP_send_cmd(0x0F, 0x00);
+            break;
+        case 5:
+            set_MCP_send_cmd(0x1F, 0x00);
+            break;
+        case 6:
+            set_MCP_send_cmd(0x3F, 0x00);
+            break;
+        case 7:
+            set_MCP_send_cmd(0x7F, 0x00);
+            break;
+        case 8:
+            set_MCP_send_cmd(0xFF, 0x00);
+            break;
+        case 9:
+            set_MCP_send_cmd(0xFF, 0x01);
+            break;
+        case 10:
+            set_MCP_send_cmd(0xFF, 0x03);
+            break;
+        case 11:
+            set_MCP_send_cmd(0xFF, 0x07);
+            break;
+        case 12:
+            set_MCP_send_cmd(0xFF, 0x0F);
+            break;
+        default:
+            break;
+        }
+        break;
+
+    case 2: //低功耗休眠模式
+        switch (num_of_ON_LED)
+        {
+        case 0:
+            set_MCP_send_cmd(0x00, 0x80);
+            break;
+        case 1:
+            set_MCP_send_cmd(0x01, 0x80);
+            break;
+        case 2:
+            set_MCP_send_cmd(0x03, 0x80);
+            break;
+        case 3:
+            set_MCP_send_cmd(0x07, 0x80);
+            break;
+        case 4:
+            set_MCP_send_cmd(0x0F, 0x80);
+            break;
+        case 5:
+            set_MCP_send_cmd(0x1F, 0x80);
+            break;
+        case 6:
+            set_MCP_send_cmd(0x3F, 0x80);
+            break;
+        case 7:
+            set_MCP_send_cmd(0x7F, 0x80);
+            break;
+        case 8:
+            set_MCP_send_cmd(0xFF, 0x80);
+            break;
+        case 9:
+            set_MCP_send_cmd(0xFF, 0x81);
+            break;
+        case 10:
+            set_MCP_send_cmd(0xFF, 0x83);
+            break;
+        case 11:
+            set_MCP_send_cmd(0xFF, 0x87);
+            break;
+        case 12:
+            set_MCP_send_cmd(0xFF, 0x8F);
+            break;
+        default:
+            break;
+        }
+        break;
+    default:
+        break;
+    }
+}
