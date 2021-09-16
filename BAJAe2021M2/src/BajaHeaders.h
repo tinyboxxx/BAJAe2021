@@ -36,11 +36,7 @@
 #include <Wire.h>
 
 // BNO055姿态 ====================================
-#include <Adafruit_Sensor.h>
-#include <Adafruit_BNO055.h>
-#include <utility/imumaths.h>
-Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x29);
-sensors_event_t linearAccelData; //BNO event
+
 
 // GPS ====================================
 #include <TinyGPSPlus.h> // Tiny GPS Plus Library
@@ -303,15 +299,29 @@ void GPStoRAM() //读取GPS时间
     // sprintf(sz, "%02d/%02d/%02d ", d.month(), d.day(), d.year());
     // Serial.print(sz);
 }
-void IRAM_ATTR SPD_TRIGGERED() 
+
+int SPD_count;
+int lastPulseCounter_SPD = 0;
+float SPD_Calc_Factor = 105.3; //频率换算系数，计算方法见excel表
+
+long last_RPM_millis = 0;
+long last_SPD_millis = 0;
+
+int RPM_count; // only for debug
+int lastPulseCounter_RPM = 0;
+int RPM_Calc_Factor = 60000; //频率换算系数
+
+void IRAM_ATTR SPD_TRIGGERED()
 {
-	SPD_count +=1;
-	SPD=(millis()-last_SPD_millis)*SPD_xishu;
+    SPD_count += 1;
+    SPD = (millis() - last_SPD_millis) * SPD_Calc_Factor;
+    last_SPD_millis = millis();
 }
-void IRAM_ATTR RPM_TRIGGERED() 
+void IRAM_ATTR RPM_TRIGGERED()
 {
-	RPM_count +=1;
-	SPD=(millis()-last_RPM_millis)*RPM_xishu;
+    RPM_count += 1;
+    RPM = (millis() - last_RPM_millis) * RPM_Calc_Factor;
+    last_RPM_millis = millis();
 }
 // 函数的头文件
 long map(long x, long in_min, long in_max, long out_min, long out_max);

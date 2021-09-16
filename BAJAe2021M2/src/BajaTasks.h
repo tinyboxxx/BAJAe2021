@@ -28,9 +28,6 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
         {
             if (BNO055isOK == true)
             {
-                bno.getEvent(&linearAccelData, Adafruit_BNO055::VECTOR_LINEARACCEL);
-                GFy = linearAccelData.acceleration.z;
-                GFx = linearAccelData.acceleration.y;
                 //(float)linearAccelData.acceleration.y 是车前后
                 //(float)linearAccelData.acceleration.z 是车左右
             }
@@ -114,6 +111,11 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             u8g2.print(BTRYvoltage);
             u8g2.setCursor(180, 55);
             u8g2.print(BTRYpercentage);
+
+            u8g2.setCursor(210, 46);
+            u8g2.print(SPD_count);
+            u8g2.setCursor(210, 55);
+            u8g2.print(RPM_count);
 
             fpsOLED = 1000.0 / (millis() - lastOLEDrefreshTime);
             lastOLEDrefreshTime = millis();
@@ -211,32 +213,11 @@ void Task_UpdateData(void *pvParameters) // 测时速、转速、姿态、SD卡�
     const TickType_t xFrequency = 8;
     xLastWakeTime = xTaskGetTickCount(); // 用当前时间初始化xLastWakeTime变量。
 
-    int mSec = 0;
-    int lastmSec = 0;
-
-    int PulseCounter_SPD;
-    int PulseCounter_RPM;
-    int lastPulseCounter_SPD = 0;
-    float SPD_Calc_Factor = 105.3; //频率换算系数，计算方法见excel表
-
-    int lastPulseCounter_RPM = 0;
-    int RPM_Calc_Factor = 60000; //频率换算系数
 
     for (;;)
     {
         vTaskDelayUntil(&xLastWakeTime, xFrequency); // 等待下一个周期
         // ArduinoOTA.handle();                         //OTA必须运行的检测语句
-
-        PulseCounter_SPD = (int32_t)encoder_speed.getCount();
-        PulseCounter_RPM = (int32_t)encoder_rpm.getCount();
-
-        // DEBUG_PRINTLN((millis() - lastmSec))
-        mSec = millis();
-        SPD = SPD_Calc_Factor * (PulseCounter_SPD - lastPulseCounter_SPD) / (mSec - lastmSec);
-        RPM = RPM_Calc_Factor * (PulseCounter_RPM - lastPulseCounter_RPM) / (mSec - lastmSec);
-        lastPulseCounter_RPM = PulseCounter_RPM;
-        lastPulseCounter_SPD = PulseCounter_SPD;
-        lastmSec = mSec;
 
         vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
     }

@@ -107,17 +107,8 @@ void setup(void)
   attachInterrupt(27, SPD_TRIGGERED, FALLING);
   attachInterrupt(34, RPM_TRIGGERED, FALLING);
 
-  // BNO055姿态 ====================================
-  // if (!bno.begin()) // 初始化传感器
-  // {
-  //   bootUpPrintWithLora("BNO055 Booted!");
-  //   bno.setExtCrystalUse(true); //使用外部晶振以获得更好的精度
-  // }
-  // else
-  // {
-  //   bootUpPrintWithLora("ERR no BNO055 detected"); // 检测BNO055时出现问题...请检查您的连接
-  //   BNO055isOK = false;
-  // }
+  // IMU ====================================
+
 
   // 任务定义 ====================================
   // xTaskCreate(
