@@ -102,10 +102,10 @@ void setup(void)
   // encoder_speed.attachSingleEdge(27, 27); // SPD
   // encoder_rpm.attachSingleEdge(34, 34);   // RPM
 
-  pinMode(27, INPUT_PULLUP); //SPD
-  pinMode(34, INPUT_PULLUP); //RPM
+  pinMode(27, INPUT_PULLUP ); //SPD
   attachInterrupt(27, SPD_TRIGGERED, FALLING);
-  attachInterrupt(34, RPM_TRIGGERED, FALLING);
+
+  attachInterrupt(34, RPM_TRIGGERED, RISING); 
 
   // IMU ====================================
 

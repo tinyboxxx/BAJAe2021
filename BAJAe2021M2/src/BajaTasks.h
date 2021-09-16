@@ -69,6 +69,12 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
                 sprintf(bufferStr2, "%02d", SPD);
             }
             u8g2.setFont(u8g2_font_logisoso42_tn);
+
+            if (millis() - last_SPD_millis > 2000)
+            {
+                SPD = 0;
+            }
+
             u8g2.drawStr(98, 45, bufferStr2); //SPD文字显示
 
             u8g2.setFont(u8g2_font_logisoso18_tn);
@@ -213,10 +219,10 @@ void Task_UpdateData(void *pvParameters) // 测时速、转速、姿态、SD卡�
     const TickType_t xFrequency = 8;
     xLastWakeTime = xTaskGetTickCount(); // 用当前时间初始化xLastWakeTime变量。
 
-
     for (;;)
     {
         vTaskDelayUntil(&xLastWakeTime, xFrequency); // 等待下一个周期
+
         // ArduinoOTA.handle();                         //OTA必须运行的检测语句
 
         vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性

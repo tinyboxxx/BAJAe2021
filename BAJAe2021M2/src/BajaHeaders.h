@@ -1,4 +1,3 @@
-// TODO:
 //本文件为ino顶部的引用和初始化部分。
 
 #define DEBUG
@@ -36,7 +35,6 @@
 #include <Wire.h>
 
 // BNO055姿态 ====================================
-
 
 // GPS ====================================
 #include <TinyGPSPlus.h> // Tiny GPS Plus Library
@@ -301,26 +299,31 @@ void GPStoRAM() //读取GPS时间
 }
 
 int SPD_count;
-int lastPulseCounter_SPD = 0;
-float SPD_Calc_Factor = 105.3; //频率换算系数，计算方法见excel表
+volatile int lastPulseCounter_SPD = 0;
+int SPD_Calc_Factor = 6350; //频率换算系数，计算方法见excel表
 
-long last_RPM_millis = 0;
-long last_SPD_millis = 0;
+unsigned long last_RPM_millis = 0;
+unsigned long last_SPD_millis = 0;
+unsigned long RPM_millis = 0;
+unsigned long SPD_millis = 0;
 
 int RPM_count; // only for debug
-int lastPulseCounter_RPM = 0;
+volatile int lastPulseCounter_RPM = 0;
 int RPM_Calc_Factor = 60000; //频率换算系数
 
 void IRAM_ATTR SPD_TRIGGERED()
 {
-    SPD_count += 1;
-    SPD = (millis() - last_SPD_millis) * SPD_Calc_Factor;
-    last_SPD_millis = millis();
+    if (millis() > last_SPD_millis + 50)
+    {
+        SPD_count++;
+        SPD = SPD_Calc_Factor / (millis() - last_SPD_millis);
+        last_SPD_millis = millis();
+    }
 }
 void IRAM_ATTR RPM_TRIGGERED()
 {
     RPM_count += 1;
-    RPM = (millis() - last_RPM_millis) * RPM_Calc_Factor;
+    RPM = RPM_Calc_Factor / (millis() - last_RPM_millis);
     last_RPM_millis = millis();
 }
 // 函数的头文件
