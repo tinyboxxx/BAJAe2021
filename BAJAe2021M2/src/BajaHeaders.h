@@ -303,7 +303,16 @@ void GPStoRAM() //读取GPS时间
     // sprintf(sz, "%02d/%02d/%02d ", d.month(), d.day(), d.year());
     // Serial.print(sz);
 }
-
+void IRAM_ATTR SPD_TRIGGERED() 
+{
+	SPD_count +=1;
+	SPD=(millis()-last_SPD_millis)*SPD_xishu;
+}
+void IRAM_ATTR RPM_TRIGGERED() 
+{
+	RPM_count +=1;
+	SPD=(millis()-last_RPM_millis)*RPM_xishu;
+}
 // 函数的头文件
 long map(long x, long in_min, long in_max, long out_min, long out_max);
 int intMapping(int x, int in_min, int in_max, int out_min, int out_max);
