@@ -40,8 +40,8 @@
 #include <TinyGPSPlus.h> // Tiny GPS Plus Library
 
 // I2C ====================================
-#define I2C_SDA 4
-#define I2C_SCL 33
+#define I2C_SDA 33
+#define I2C_SCL 4
 
 // WIFIOTA ====================================
 #include <WiFi.h>
