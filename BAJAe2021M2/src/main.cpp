@@ -83,9 +83,11 @@ void setup(void)
   }
   // CLI ====================================
   cli.setOnError(errorCallback); // Set error Callback
-  Command turnoffwifi_Cmd = cli.addCmd("turnoffwifi",turnoffwifi);
-  Command turnonwifi_Cmd = cli.addCmd("turnonwifi",turnonwifi);
-  Command Scanner_Cmd = cli.addCmd("Scanner",Scanner);
+  Command turnoffwifi_Cmd = cli.addCmd("turnoffwifi", turnoffwifi);
+  Command turnonwifi_Cmd = cli.addCmd("turnonwifi", turnonwifi);
+  Command Scanner_Cmd = cli.addCmd("i2cscan", i2cscan);
+  Command loralowpower_Cmd = cli.addCmd("loralowpower", loralowpower);
+  Command lorahighpower_Cmd = cli.addCmd("lorahighpower", lorahighpower);
 
   bootUpPrint("CLI booted!");
 
@@ -102,13 +104,12 @@ void setup(void)
   // encoder_speed.attachSingleEdge(27, 27); // SPD
   // encoder_rpm.attachSingleEdge(34, 34);   // RPM
 
-  pinMode(27, INPUT_PULLUP ); //SPD
+  pinMode(27, INPUT_PULLUP); //SPD
   attachInterrupt(27, SPD_TRIGGERED, FALLING);
 
-  attachInterrupt(34, RPM_TRIGGERED, RISING); 
+  attachInterrupt(34, RPM_TRIGGERED, RISING);
 
   // IMU ====================================
-
 
   // 任务定义 ====================================
   // xTaskCreate(

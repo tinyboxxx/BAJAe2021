@@ -1,5 +1,5 @@
 
-// ESP32 I2C Scanner
+// ESP32 I2C i2cscan
 // Based on code of Nick Gammon  http://www.gammon.com.au/forum/?id=10896
 // ESP32 DevKit - Arduino IDE 1.8.5
 // Device tested PCF8574 - Use pullup resistors 3K3 ohms !
@@ -14,7 +14,7 @@ void setup()
   Wire.setClock(400000);
 }
 
-void Scanner ()
+void i2cscan ()
 {
   Serial.println ();
   Serial.println ("I2C scanner. Scanning ...");
@@ -41,6 +41,6 @@ void Scanner ()
 
 void loop()
 {
-  Scanner ();
+  i2cscan ();
   delay (100);
 }

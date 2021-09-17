@@ -74,6 +74,10 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             {
                 SPD = 0;
             }
+            if (millis() - last_RPM_millis > 1500)
+            {
+                RPM = 0;
+            }
 
             u8g2.drawStr(98, 45, bufferStr2); //SPD文字显示
 
@@ -84,6 +88,14 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
 
             u8g2.setFont(u8g2_font_6x10_mr);
             u8g2.drawStr(222, 25, "RPM");
+
+            if (RPM > 0 && SPD > 0)
+            {
+                GearRatio = SPD * GearRatio_Calc_Facotr / RPM;
+            }
+
+            u8g2.setCursor(210, 37);
+            u8g2.print(GearRatio);
 
             u8g2.setFont(u8g2_font_6x10_mr); //日期时间显示
             u8g2.setCursor(97, 55);
@@ -139,20 +151,7 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
                 nShiftlightPos = intMapping(RPM, RPM_Display_MIN, RPM_Display_MAX, 0, 12);
             }
 
-            // for (int i = 0; i < 12; i++) // Turn the LED on
-            // {
-            //     if (i <= nShiftlightPos)
-            //     {
-            //         mcp.digitalWrite(i, HIGH);
-            //     }
-            //     else
-            //     {
-            //         mcp.digitalWrite(i, LOW);
-            //     }
-            // }
-
-            set_MCP(nShiftlightPos,lora_power_mode);
-
+            set_MCP(nShiftlightPos, lora_power_mode);
         }
         else //正在OTA中
         {
@@ -246,18 +245,7 @@ void Task_UpdateTime(void *pvParameters) //时间更新任务，1秒钟更新1�
     {
         // 等待下一个周期
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        // if (DS3231isOK && timeSyncedFromNTP == false && timeSyncedFromGPS == false && timeSyncedFromRTC == false) //读取RTC的时间
-        // {
-        //     RTCtoRAM();
-        // }
 
-        // if (wifiNeverConnected == true)
-        // {
-        //     // if (GPSconnected)
-        //     // {
-        //     //     //get time from gps
-        //     // }
-        // }
         if (getLocalTime(&time_in_RAM)) // update time From ESP32 to RAM
         {
             // Serial.println(&time_in_RAM, "%F %T");
