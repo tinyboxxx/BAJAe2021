@@ -37,15 +37,10 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             char PrinterStr[20];
             sprintf(PrinterStr, "X%04.1f Y%04.1f", GFx, GFy);
             u8g2.drawStr(0, 6, PrinterStr);
-            u8g2.drawFrame(0, 11, 53, 53); //GForce
-            //长宽都是53，一半的长度是26
-            //X:0->26->52
-            //y:11->37->63
-            //中心的点是x26,y37
-            u8g2.drawLine(0, 37, 52, 37);  //横向中心线
-            u8g2.drawLine(26, 11, 26, 63); //纵向中心线
-            //u8g2.drawFrame(13, 24, 26, 26); //小圈,方的
-            u8g2.drawCircle(26, 37, 13, U8G2_DRAW_ALL); //小圈,圆的
+            u8g2.drawFrame(0, 0, 65, 64); //GForce
+            u8g2.drawLine(0, 32, 64, 32);  //横向中心线
+            u8g2.drawLine(32, 0, 32, 64); //纵向中心线
+            u8g2.drawCircle(32, 32, 16, U8G2_DRAW_ALL); //小圈,圆的
             GFx_OLED = GFx * GFx_OLED_ZoomLevel;
             GFy_OLED = GFy * GFx_OLED_ZoomLevel;
             if (GFx_OLED > 26)
@@ -57,7 +52,7 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             else if (GFy_OLED < -26)
                 GFy_OLED = -26;
 
-            u8g2.drawFrame(GFx_OLED + 25, GFy_OLED + 36, 3, 3); //指示点 初始位置25,36,3,3
+            u8g2.drawBox(GFx_OLED + 31, GFy_OLED + 31, 3, 3); //指示点 初始位置25,36,3,3
 
             char bufferStr2[2];
             if (gps_hdop <= 1.3)
@@ -66,7 +61,14 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             }
             else
             {
-                sprintf(bufferStr2, "%02d", SPD);
+                if (SPD >= 99)
+                {
+                    sprintf(bufferStr2, "99");
+                }
+                else
+                {
+                    sprintf(bufferStr2, "%02d", SPD);
+                }
             }
             u8g2.setFont(u8g2_font_logisoso42_tn);
 
@@ -239,39 +241,27 @@ void Task_UpdateTime(void *pvParameters) //时间更新任务，1秒钟更新1�
 {
     (void)pvParameters;
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = 900;
+    const TickType_t xFrequency = 999;
     xLastWakeTime = xTaskGetTickCount(); // 用当前时间初始化xLastWakeTime变量。
     for (;;)
     {
         // 等待下一个周期
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
 
-        if (getLocalTime(&time_in_RAM)) // update time From ESP32 to RAM
-        {
-            // Serial.println(&time_in_RAM, "%F %T");
-        }
-        else
-        {
-            Serial.println("time update error");
-        }
+        // if (getLocalTime(&time_in_RAM)) // update time From ESP32 to RAM
+        // {
+        //     // Serial.println(&time_in_RAM, "%F %T");
+        // }
+        // else
+        // {
+        //     Serial.println("time update error");
+        // }
+
+        getLocalTime(&time_in_RAM);
+        Serial.println(&time_in_RAM, "%F %T");
 
         // BTRYvoltage=analogRead(35)/4095*3.3*2;
         BTRYvoltage = analogRead(35) * 0.001795;
         BTRYpercentage = floatMapping(BTRYvoltage, 2.8, 3.6, 0, 100);
     }
-}
-
-long map(long x, long in_min, long in_max, long out_min, long out_max)
-{
-    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
-
-int intMapping(int x, int in_min, int in_max, int out_min, int out_max)
-{
-    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
-
-float floatMapping(float x, float in_min, float in_max, float out_min, float out_max)
-{
-    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }

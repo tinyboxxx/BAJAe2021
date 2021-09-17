@@ -72,6 +72,7 @@ void setup(void)
   // TIME ====================================
   if (rtc.begin()) // 初始化 RTC https://github.com/Erriez/ErriezDS3231
   {
+    rtc.clockEnable(true);
     rtc.setSquareWave(SquareWaveDisable);
     bootUpPrint(F("RTC OK.Time now:"));
     RTCtoRAM();
@@ -88,6 +89,7 @@ void setup(void)
   Command Scanner_Cmd = cli.addCmd("i2cscan", i2cscan);
   Command loralowpower_Cmd = cli.addCmd("loralowpower", loralowpower);
   Command lorahighpower_Cmd = cli.addCmd("lorahighpower", lorahighpower);
+  Command printGpsTime_Cmd = cli.addCmd("gpstime", cmd_gpstime);
 
   bootUpPrint("CLI booted!");
 
@@ -99,14 +101,8 @@ void setup(void)
   //IO35 -> BTY voltage x0.5
 
   // Encoder ====================================
-  // https://github.com/madhephaestus/ESP32Encoder
-  // ESP32Encoder::useInternalWeakPullResistors = UP;
-  // encoder_speed.attachSingleEdge(27, 27); // SPD
-  // encoder_rpm.attachSingleEdge(34, 34);   // RPM
-
   pinMode(27, INPUT_PULLUP); //SPD
   attachInterrupt(27, SPD_TRIGGERED, FALLING);
-
   attachInterrupt(34, RPM_TRIGGERED, RISING);
 
   // IMU ====================================

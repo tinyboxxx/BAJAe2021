@@ -34,8 +34,6 @@
 #include <SPI.h>
 #include <Wire.h>
 
-// BNO055姿态 ====================================
-
 // GPS ====================================
 #include <TinyGPSPlus.h> // Tiny GPS Plus Library
 
@@ -80,9 +78,6 @@ const float Home_LNG = -96.951125; // Your Home Longitude
 int incomingByte;
 TinyGPSPlus gps; // 创建一个名为gps的TinyGPS++对象的实例。
 
-// sprintf(sz, "%02d:%02d:%02d ", t.hour(), t.minute(), t.second());
-// sprintf(sz,"%02d/%02d/%02d ", d.month(), d.day(), d.year());
-
 // TIME ====================================
 #include "time.h"
 #include <ErriezDS3231.h> //https://github.com/Erriez/ErriezDS3231
@@ -99,13 +94,6 @@ int BTRYpercentage = 0; //电池剩余电量，0~100
 // LORA ====================================
 #define Serial2_RXPIN 16 //to LORA TX
 #define Serial2_TXPIN 17 //to LORA RX
-
-//测速 RPM SPD====================================
-//https://github.com/madhephaestus/ESP32Encoder
-
-// #include <ESP32Encoder.h>
-// ESP32Encoder encoder_speed;
-// ESP32Encoder encoder_rpm;
 
 // Stats 状态变量 ====================================
 bool setLEDtoSpeed = false; // 1:SPEED 0:RPM
@@ -144,7 +132,6 @@ float GFx_OLED_ZoomLevel = 1.5;
 float gps_hdop = 0.0;
 float gps_speed = 0.0;
 int gps_sat_count = 0;
-
 
 // CLI ====================================
 #include <SimpleCLI.h>   // Inlcude Library
@@ -215,9 +202,6 @@ void errorCallback(cmd_error *e) // Callback in case of an error
     }
 }
 
-
-
-
 void bootUpPrint(String textHere) //开机输出记录
 {
     Serial.println(textHere);
@@ -230,6 +214,11 @@ void bootUpPrintWithLora(String textHere) //开机输出记录，带无线输出
     Serial2.println(textHere);
     u8g2log.print(textHere);
     u8g2log.print("\n");
+}
+
+void setSystemTime()
+{
+    rtc_builtin.setTime(30, 24, 15, 17, 1, 2021); // 17th Jan 2021 15:24:30
 }
 
 void printRTCtime() //输出RTC芯片的时间
@@ -260,22 +249,22 @@ void printRAMtime() //输出内存的时间
     }
 }
 
-void RTCtoRAM() //读取RTC的时间到内存
+void RTCtoRAM() //读取RTC的时间到机内rtc 开机运行一次
 {
-    printRTCtime();
-    struct tm TimeInRTC;
-    if (rtc.read(&TimeInRTC))
+    uint8_t hour;
+    uint8_t min;
+    uint8_t sec;
+    uint8_t mday;
+    uint8_t mon;
+    uint16_t year;
+    uint8_t wday;
+    // Read date/time
+    if (!rtc.getDateTime(&hour, &min, &sec, &mday, &mon, &year, &wday))
     {
-        time_t t = mktime(&TimeInRTC);
-        struct timeval now = {.tv_sec = t};
-        settimeofday(&now, NULL);
-        timeSyncedFromRTC = true;
-        printRAMtime();
+        Serial.println(F("Read date/time failed"));
+        return;
     }
-    else
-    {
-        TELL_EVERYONE_LN("RTC error,RTCtoRAM FAIL")
-    }
+    rtc_builtin.setTime(sec, min, hour, mday, mon, year); 
 }
 void RAMtoRTC() //写入时间至RTC，未测试
 {
@@ -290,6 +279,13 @@ void RAMtoRTC() //写入时间至RTC，未测试
         rtc.setEpoch(nowEpoch - 8 * 3600); //我们时区在+8区
         printRAMtime();
         printRTCtime();
+
+        // Set date/time: 12:34:56 31 December 2020 Sunday
+        // if (!rtc.setDateTime(12, 34, 56, 31, 12, 2020, 0))
+        // {
+        //     Serial.println(F("Set date/time failed"));
+        //     return;
+        // }
     }
 }
 void NTPtoRAM() //联网获取正确时间，需要WiFi
@@ -337,6 +333,12 @@ void printGpsTime() //读取GPS时间
     }
 }
 
+void cmd_gpstime(cmd *c)
+{
+    Command cmd(c); // Create wrapper object
+    printGpsTime(); //读取GPS时间
+}
+
 void GPStoRAM() //读取GPS时间
 {
     if (!gps.time.isValid())
@@ -349,6 +351,7 @@ void GPStoRAM() //读取GPS时间
     }
 }
 
+// 速度、转速 中断 ====================================
 int SPD_count;
 volatile int lastPulseCounter_SPD = 0;
 int SPD_Calc_Factor = 6350; //频率换算系数，计算方法见excel表
@@ -376,7 +379,7 @@ void IRAM_ATTR RPM_TRIGGERED()
     last_RPM_millis = millis();
 }
 
-// Gear Ratio
+// Gear Ratio ====================================
 int GearRatio = 0;
 static int GearRatio_Calc_Facotr = 310;
 // 3750, 60, gear = 5
@@ -384,10 +387,23 @@ static int GearRatio_Calc_Facotr = 310;
 GearRatio = SPD * GearRatio_Calc_Facotr / RPM;
 */
 
-// 函数的头文件
-long map(long x, long in_min, long in_max, long out_min, long out_max);
-int intMapping(int x, int in_min, int in_max, int out_min, int out_max);
-float floatMapping(float x, float in_min, float in_max, float out_min, float out_max);
+// 线性计算函数 ====================================
+long map(long x, long in_min, long in_max, long out_min, long out_max)
+{
+    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+int intMapping(int x, int in_min, int in_max, int out_min, int out_max)
+{
+    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+float floatMapping(float x, float in_min, float in_max, float out_min, float out_max)
+{
+    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+// 函数的头文件 ====================================
 
 void set_MCP_send_cmd(int Channal_A, int Channal_B)
 {

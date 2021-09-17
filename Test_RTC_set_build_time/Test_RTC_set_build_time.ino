@@ -29,9 +29,9 @@
  *    Documentation:  https://erriez.github.io/ErriezDS3231
  */
 // I2C ====================================
-#define I2C_SDA 4
-#define I2C_SCL 33
-//only in mark II
+#define I2C_SDA 33
+#define I2C_SCL 4
+//only in mark III
 
 #include <Wire.h>
 #include <ErriezDS3231.h>
