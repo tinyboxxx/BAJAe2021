@@ -25,10 +25,6 @@ void setup(void)
   bootUpPrint("I2C Begin!");
   // LED =========================================
   bootUpPrint("Test LED");
-  Wire.beginTransmission(0x20);
-  Wire.write(0x05); // IODIRA register
-  Wire.write(0x00); // set all of port A to outputs
-  Wire.endTransmission();
 
   Wire.beginTransmission(0x20);
   Wire.write(0x00); // IODIRA register
@@ -40,29 +36,9 @@ void setup(void)
   Wire.write(0x00); // set all of port B to outputs
   Wire.endTransmission();
 
-  Wire.beginTransmission(0x20);
-  Wire.write(0x12);       // address bank A
-  Wire.write((byte)0xFF); // value to send - all HIGH
-  Wire.endTransmission();
-
-  Wire.beginTransmission(0x20);
-  Wire.write(0x13);       // address bank B
-  Wire.write((byte)0x0F); // value to send - all LED HIGH
-  // 0000 1111 -> 0F
-  // ^GPB7   ^GBP0
-  Wire.endTransmission();
-
+  set_MCP(12, lora_power_mode);
   vTaskDelay(200);
-
-  Wire.beginTransmission(0x20);
-  Wire.write(0x12);       // address bank A
-  Wire.write((byte)0x00); // value to send - all LOW
-  Wire.endTransmission();
-
-  Wire.beginTransmission(0x20);
-  Wire.write(0x13);       // address bank B
-  Wire.write((byte)0x00); // value to send - all LOW
-  Wire.endTransmission();
+  set_MCP(0, lora_power_mode);
   bootUpPrint("LED OK!");
 
   // LORA ====================================
@@ -80,16 +56,18 @@ void setup(void)
   else
   {
     bootUpPrint("RTC error");
-    DS3231isOK = false;
   }
   // CLI ====================================
   cli.setOnError(errorCallback); // Set error Callback
   Command turnoffwifi_Cmd = cli.addCmd("turnoffwifi", turnoffwifi);
   Command turnonwifi_Cmd = cli.addCmd("turnonwifi", turnonwifi);
-  Command Scanner_Cmd = cli.addCmd("i2cscan", i2cscan);
+  Command printip_cmd = cli.addCmd("printip", printip);
   Command loralowpower_Cmd = cli.addCmd("loralowpower", loralowpower);
   Command lorahighpower_Cmd = cli.addCmd("lorahighpower", lorahighpower);
+  Command Scanner_Cmd = cli.addCmd("i2cscan", i2cscan);
+  Command reboot_Cmd = cli.addCmd("reboot", reboot);
   Command printGpsTime_Cmd = cli.addCmd("gpstime", cmd_gpstime);
+  Command settime_cmd = cli.addSingleArgCmd("settime", settime);
 
   bootUpPrint("CLI booted!");
 
@@ -106,6 +84,16 @@ void setup(void)
   attachInterrupt(34, RPM_TRIGGERED, RISING);
 
   // IMU ====================================
+  if (!mpu.begin(0x69))
+  {
+    TELL_EVERYONE_LN("MPU6050 ERROR")
+  }
+  else
+  {
+    mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+    mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+    mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
+  }
 
   // 任务定义 ====================================
   // xTaskCreate(
@@ -123,12 +111,45 @@ void setup(void)
   xTaskCreatePinnedToCore(Task_GetGpsLora, "Task_GetGpsLora" // GPS数据更新任务
                           ,
                           16384, NULL, 1, NULL, 1);
-  xTaskCreatePinnedToCore(Task_UpdateData, "Task_UpdateData" // 测速任务
-                          ,
-                          4000, NULL, 1, NULL, 1);
   xTaskCreatePinnedToCore(Task_UpdateTime, "Task_UpdateTime" // 测速任务
                           ,
                           4000, NULL, 1, NULL, 1);
+
+  // ArduinoOTA
+  //     .onStart([]()
+  //              {
+  //                String type;
+  //                if (ArduinoOTA.getCommand() == U_FLASH)
+  //                  type = "sketch";
+  //                else // U_SPIFFS
+  //                  type = "filesystem";
+
+  //                // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+  //                Serial.println("Start updating " + type);
+  //              })
+  //     .onEnd([]()
+  //            { Serial.println("\nEnd"); })
+  //     .onProgress([](unsigned int progress, unsigned int total)
+  //                 { Serial.printf("Progress: %u%%\r", (progress / (total / 100))); })
+  //     .onError([](ota_error_t error)
+  //              {
+  //                Serial.printf("Error[%u]: ", error);
+  //                if (error == OTA_AUTH_ERROR)
+  //                  Serial.println("Auth Failed");
+  //                else if (error == OTA_BEGIN_ERROR)
+  //                  Serial.println("Begin Failed");
+  //                else if (error == OTA_CONNECT_ERROR)
+  //                  Serial.println("Connect Failed");
+  //                else if (error == OTA_RECEIVE_ERROR)
+  //                  Serial.println("Receive Failed");
+  //                else if (error == OTA_END_ERROR)
+  //                  Serial.println("End Failed");
+  //              });
+
+  // // ArduinoOTA.begin();
+
+  // // Serial.print("IP address: ");
+  // // Serial.println(WiFi.localIP());
 }
 
 void loop(void)

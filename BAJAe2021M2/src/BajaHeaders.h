@@ -46,8 +46,8 @@
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
-const char *ssid = "TiWifi";
-const char *password = "hexiaoqi";
+char *ssid = "TiWifi";
+char *password = "hexiaoqi97";
 const char *ntpServer = "cn.ntp.org.cn";
 #define gmtOffset_sec 28800 //GMT 时差 (seconds) 8 * 60 * 60
 
@@ -95,6 +95,11 @@ int BTRYpercentage = 0; //电池剩余电量，0~100
 #define Serial2_RXPIN 16 //to LORA TX
 #define Serial2_TXPIN 17 //to LORA RX
 
+// MPU6050
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+Adafruit_MPU6050 mpu;
+
 // Stats 状态变量 ====================================
 bool setLEDtoSpeed = false; // 1:SPEED 0:RPM
 bool enableFakeData = true; //开启假数据
@@ -108,9 +113,6 @@ bool isOTAing = false;
 unsigned int OTAprogress = 0;
 unsigned int OTAtotal = 0;
 
-bool BNO055isOK = true;
-bool DS3231isOK = true;
-
 bool wifiNeverConnected = true;
 bool GPSNeverConnected = true;
 bool timeSyncedFromNTP = false;
@@ -122,85 +124,17 @@ int lora_power_mode = 0; // 0是正常功耗、2是低功耗。低功耗模式�
 //行车数据变量=============================
 unsigned int RPM = 0;
 unsigned int SPD = 0; //千米每小时
+double TRIP = 0.0; //米
 
 float GFx = 0;
 float GFy = 0;
 int GFx_OLED = 0;
 int GFy_OLED = 0;
-float GFx_OLED_ZoomLevel = 1.5;
+float GFx_OLED_ZoomLevel = 2;
 
 float gps_hdop = 0.0;
 float gps_speed = 0.0;
 int gps_sat_count = 0;
-
-// CLI ====================================
-#include <SimpleCLI.h>   // Inlcude Library
-SimpleCLI cli;           // Create CLI Object
-void turnoffwifi(cmd *c) // Callback function for cowsay command
-{
-    Command cmd(c); // Create wrapper object
-    WiFi.mode(WIFI_OFF);
-}
-void turnonwifi(cmd *c) // Callback function for cowsay command
-{
-    Command cmd(c); // Create wrapper object
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
-}
-void loralowpower(cmd *c) // Callback function for cowsay command
-{
-    Command cmd(c); // Create wrapper object
-    lora_power_mode = 2;
-}
-void lorahighpower(cmd *c) // Callback function for cowsay command
-{
-    Command cmd(c); // Create wrapper object
-    lora_power_mode = 0;
-}
-
-void i2cscan(cmd *c)
-{
-    Command cmd(c); // Create wrapper object
-    Serial.println();
-    Serial.println("I2C scanner. Scanning ...");
-    byte count = 0;
-
-    for (byte i = 8; i < 120; i++)
-    {
-        Wire.beginTransmission(i);       // Begin I2C transmission Address (i)
-        if (Wire.endTransmission() == 0) // Receive 0 = success (ACK response)
-        {
-            Serial.print("Found address: ");
-            Serial.print(i, DEC);
-            Serial.print(" (0x");
-            Serial.print(i, HEX); // PCF8574 7 bit address
-            Serial.println(")");
-            count++;
-        }
-    }
-    Serial.print("Found ");
-    Serial.print(count, DEC); // numbers of devices
-    Serial.println(" device(s).");
-}
-
-void errorCallback(cmd_error *e) // Callback in case of an error
-{
-    CommandError cmdError(e); // Create wrapper object
-    Serial.print("ERROR: ");
-    Serial2.print("ERROR: ");
-    Serial.println(cmdError.toString());
-    Serial2.println(cmdError.toString());
-    if (cmdError.hasCommand())
-    {
-        Serial2.print("Did you mean \"");
-        Serial2.print(cmdError.getCommand().toString());
-        Serial2.println("\"?");
-
-        Serial.print("Did you mean \"");
-        Serial.print(cmdError.getCommand().toString());
-        Serial.println("\"?");
-    }
-}
 
 void bootUpPrint(String textHere) //开机输出记录
 {
@@ -266,13 +200,13 @@ void RTCtoRAM() //读取RTC的时间到机内rtc 开机运行一次
     uint8_t mon;
     uint16_t year;
     uint8_t wday;
-    // Read date/time
-    if (!rtc.getDateTime(&hour, &min, &sec, &mday, &mon, &year, &wday))
+
+    if (!rtc.getDateTime(&hour, &min, &sec, &mday, &mon, &year, &wday)) // 读取RTC芯片时间至各个变量
     {
-        Serial.println(F("Read date/time failed"));
+        Serial.println(F("Read RTC failed"));
         return;
     }
-    rtc_builtin.setTime(sec, min, hour, mday, mon, year);
+    rtc_builtin.setTime(sec, min, hour, mday, mon, year); // 写入ESP32自带的RTC里
 }
 void RAMtoRTC() //写入时间至RTC，未测试
 {
@@ -281,8 +215,12 @@ void RAMtoRTC() //写入时间至RTC，未测试
     // printRAMtime();
     // printRTCtime();
 
-    // time_t nowEpoch;
-    // time(&nowEpoch);
+    if (!rtc.setEpoch(rtc_builtin.getEpoch()))
+    {
+        TELL_EVERYONE_LN("Set date/time failed")
+        return;
+    }
+
     // rtc.setEpoch(nowEpoch - 8 * 3600); //我们时区在+8区
     // printRAMtime();
     // printRTCtime();
@@ -302,7 +240,7 @@ void NTPtoRAM() //联网获取正确时间，需要WiFi
         TELL_EVERYONE_LN("getting Time From NTP server")
         configTime(gmtOffset_sec, 0, ntpServer);
         timeSyncedFromNTP = true;
-        getLocalTime(&time_in_RAM); //连接服务器更新时间
+        getLocalTime(&time_in_RAM); //连接服务器 更新时间
         printRAMtime();
         RAMtoRTC();
         wifiNeverConnected = false;
@@ -339,10 +277,35 @@ void printGpsTime() //读取GPS时间
     }
 }
 
-void cmd_gpstime(cmd *c)
+static void setTimeZone(long offset, int daylight)
 {
-    Command cmd(c); // Create wrapper object
-    printGpsTime(); //读取GPS时间
+    char cst[17] = {0};
+    char cdt[17] = "DST";
+    char tz[33] = {0};
+
+    if (offset % 3600)
+    {
+        sprintf(cst, "UTC%ld:%02u:%02u", offset / 3600, abs((offset % 3600) / 60), abs(offset % 60));
+    }
+    else
+    {
+        sprintf(cst, "UTC%ld", offset / 3600);
+    }
+    if (daylight != 3600)
+    {
+        long tz_dst = offset - daylight;
+        if (tz_dst % 3600)
+        {
+            sprintf(cdt, "DST%ld:%02u:%02u", tz_dst / 3600, abs((tz_dst % 3600) / 60), abs(tz_dst % 60));
+        }
+        else
+        {
+            sprintf(cdt, "DST%ld", tz_dst / 3600);
+        }
+    }
+    sprintf(tz, "%s%s", cst, cdt);
+    setenv("TZ", tz, 1);
+    tzset();
 }
 
 void GPStoRAM() //读取GPS时间
@@ -353,9 +316,15 @@ void GPStoRAM() //读取GPS时间
     }
     else
     {
-        rtc_builtin.setTime(gps.time.second(), gps.time.minute(), gps.time.hour(), gps.date.day(), gps.date.month(), gps.date.day()); // 17th Jan 2021 15:24:30
+        rtc_builtin.setTime(gps.time.second(), gps.time.minute(), gps.time.hour(), gps.date.day(), gps.date.month(), gps.date.year()); // 17th Jan 2021 15:24:30
+
+        setTimeZone(-gmtOffset_sec, 0);
+
+        TELL_EVERYONE_LN("GPS to RAM")
     }
 }
+
+#include "clisetup.h"
 
 // 速度、转速 中断 ====================================
 int SPD_count;

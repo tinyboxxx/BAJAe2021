@@ -26,20 +26,39 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
 
         if (isOTAing == 0) //正常运行中
         {
-            if (BNO055isOK == true)
-            {
-                //(float)linearAccelData.acceleration.y 是车前后
-                //(float)linearAccelData.acceleration.z 是车左右
-            }
+            sensors_event_t a, g, temp;
+            mpu.getEvent(&a, &g, &temp);
+
+            GFx = a.acceleration.y;
+            GFy = a.acceleration.z;
+
+            //(float)linearAccelData.acceleration.y 是车前后
+            //(float)linearAccelData.acceleration.z 是车左右
 
             u8g2.clearBuffer(); //清空屏幕
             u8g2.setFont(u8g2_font_5x7_tr);
             char PrinterStr[20];
-            sprintf(PrinterStr, "X%04.1f Y%04.1f", GFx, GFy);
-            u8g2.drawStr(0, 6, PrinterStr);
-            u8g2.drawFrame(0, 0, 65, 64); //GForce
-            u8g2.drawLine(0, 32, 64, 32);  //横向中心线
-            u8g2.drawLine(32, 0, 32, 64); //纵向中心线
+            sprintf(PrinterStr, "X%04.1f ", GFx);
+            u8g2.drawStr(67, 9, PrinterStr);
+
+            sprintf(PrinterStr, "Y%04.1f", GFy);
+            u8g2.drawStr(67, 17, PrinterStr);
+
+            if (RPM > 0 && SPD > 0)
+            {
+                GearRatio = SPD * GearRatio_Calc_Facotr / RPM;
+            }
+
+            u8g2.setFont(u8g2_font_6x10_mr);
+            u8g2.setCursor(68, 26);
+            u8g2.print("Gear");
+            u8g2.setCursor(72, 36);
+            u8g2.print(GearRatio);
+
+            // u8g2.drawFrame(0, 0, 65, 64);               //GForce 外框
+            u8g2.drawFrame(0, 0, 65, 64);               //GForce 外框
+            u8g2.drawLine(0, 32, 64, 32);               //横向中心线
+            u8g2.drawLine(32, 0, 32, 64);               //纵向中心线
             u8g2.drawCircle(32, 32, 16, U8G2_DRAW_ALL); //小圈,圆的
             GFx_OLED = GFx * GFx_OLED_ZoomLevel;
             GFy_OLED = GFy * GFx_OLED_ZoomLevel;
@@ -57,11 +76,11 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             char bufferStr2[2];
             if (gps_hdop <= 1.3)
             {
-                sprintf(bufferStr2, "%02d", gps_speed);
+                sprintf(bufferStr2, "%02.0f", gps_speed);
             }
             else
             {
-                if (SPD >= 99)
+                if (SPD > 99)
                 {
                     sprintf(bufferStr2, "99");
                 }
@@ -70,7 +89,6 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
                     sprintf(bufferStr2, "%02d", SPD);
                 }
             }
-            u8g2.setFont(u8g2_font_logisoso42_tn);
 
             if (millis() - last_SPD_millis > 2000)
             {
@@ -80,68 +98,79 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             {
                 RPM = 0;
             }
+            u8g2.setFont(u8g2_font_logisoso50_tn);
+            u8g2.drawStr(95, 50, bufferStr2); //SPD文字显示
 
-            u8g2.drawStr(98, 45, bufferStr2); //SPD文字显示
+            u8g2.setFont(u8g2_font_t0_14b_mr); //日期时间显示
+            u8g2.setCursor(98, 64);            //时间
+            u8g2.print(&time_in_RAM, "%T");
 
-            u8g2.setFont(u8g2_font_logisoso18_tn);
+            u8g2.setFont(u8g2_font_t0_12_mr); //日期显示
+            u8g2.setCursor(194, 62);
+            u8g2.print(&time_in_RAM, "%F");
+
+            u8g2.setFont(u8g2_font_logisoso22_tn);
             char bufferStr4[4];
             sprintf(bufferStr4, "%04d", RPM);
-            u8g2.drawStr(210, 18, bufferStr4); //RPM文字显示
+            u8g2.drawStr(196, 24, bufferStr4); //RPM文字显示
 
             u8g2.setFont(u8g2_font_6x10_mr);
-            u8g2.drawStr(222, 25, "RPM");
+            u8g2.drawStr(216, 33, "RPM");
 
-            if (RPM > 0 && SPD > 0)
-            {
-                GearRatio = SPD * GearRatio_Calc_Facotr / RPM;
-            }
+            u8g2.setCursor(196, 42);
+            TRIP = SPD_count * 1.75;
+            u8g2.print(TRIP);
 
-            u8g2.setCursor(210, 37);
-            u8g2.print(GearRatio);
-
-            u8g2.setFont(u8g2_font_6x10_mr); //日期时间显示
-            u8g2.setCursor(97, 55);
-            u8g2.print(&time_in_RAM, "%F");
-            u8g2.setCursor(103, 64);
-            u8g2.print(&time_in_RAM, "%T");
+            u8g2.setCursor(213, 51);
+            u8g2.print("TRIP");
 
             // if (WiFi.waitForConnectResult() != WL_CONNECTE)
             //     drawSignal(u8g2, 180, 12, 4); //满格信号，三格
 
-            u8g2.setFont(u8g2_font_siji_t_6x10);
+            u8g2.setFont(u8g2_font_siji_t_6x10); //battery BTY 电量
             if (BTRYpercentage > 80)
             {
-                u8g2.drawGlyph(194, 12, 0xe254); //full
+                u8g2.drawGlyph(166, 9, 0xe254); //full
             }
             else if (BTRYpercentage > 30)
             {
-                u8g2.drawGlyph(194, 12, 0xe250); //half
+                u8g2.drawGlyph(166, 9, 0xe250); //half
             }
             else
             {
-                u8g2.drawGlyph(194, 12, 0xe242); //empty
+                u8g2.drawGlyph(166, 9, 0xe242); //empty
             }
 
             u8g2.setFont(u8g2_font_6x10_mr);
-            u8g2.setCursor(180, 28);
-            u8g2.print(gps_sat_count);
-            u8g2.setCursor(180, 37);
-            u8g2.print(gps_speed);
-            u8g2.setCursor(180, 46);
-            u8g2.print(BTRYvoltage);
-            u8g2.setCursor(180, 55);
-            u8g2.print(BTRYpercentage);
+            u8g2.setCursor(179, 9);
+            if (BTRYpercentage > 0)
+            {
+                u8g2.print(BTRYpercentage);
+            }
+            else
+                u8g2.print("ER");
 
-            u8g2.setCursor(210, 46);
-            u8g2.print(SPD_count);
-            u8g2.setCursor(210, 55);
-            u8g2.print(RPM_count);
-
-            fpsOLED = 1000.0 / (millis() - lastOLEDrefreshTime);
-            lastOLEDrefreshTime = millis();
             u8g2.setFont(u8g2_font_6x10_mr);
-            sprintf(bufferStr4, "%02d", fpsOLED);
-            u8g2.drawStr(180, 64, bufferStr4);
+            u8g2.setCursor(166, 22);
+            u8g2.println("SATn");
+            u8g2.setCursor(166, 32);
+            u8g2.println(gps_sat_count);
+            u8g2.setCursor(166, 44);
+            u8g2.println("GPSs");
+            u8g2.setCursor(166, 54);
+            u8g2.println(gps_speed);
+
+            // fpsOLED = 1000.0 / (millis() - lastOLEDrefreshTime); //FPS
+            // lastOLEDrefreshTime = millis();
+            // u8g2.setFont(u8g2_font_6x10_mr);
+            // sprintf(bufferStr4, "%02d", fpsOLED);
+            // u8g2.drawStr(180, 64, bufferStr4);
+
+            u8g2.drawFrame(64, 0, 29, 64); //右侧外框
+
+            u8g2.drawFrame(164, 0, 29, 64); //右侧外框
+
+            u8g2.drawFrame(192, 0, 64, 64); //右侧外框
 
             u8g2.sendBuffer();      //更新至屏幕
             if (setLEDtoSpeed == 1) //开始计算LED灯
@@ -181,8 +210,8 @@ void Task_GetGpsLora(void *pvParameters) // GPS刷新任务
     xLastWakeTime = xTaskGetTickCount(); // 用当前时间初始化xLastWakeTime变量。
     for (;;)
     {
-
         vTaskDelayUntil(&xLastWakeTime, xFrequency); // 等待下一个周期
+
         while (Serial1.available())
             gps.encode(Serial1.read()); /* Get GPS data */
 
@@ -213,6 +242,8 @@ void Task_GetGpsLora(void *pvParameters) // GPS刷新任务
                 Serial2.println("\"?");
             }
         }
+
+        ArduinoOTA.handle(); //OTA必须运行的检测语句
     }
 }
 
@@ -226,8 +257,6 @@ void Task_UpdateData(void *pvParameters) // 测时速、转速、姿态、SD卡�
     for (;;)
     {
         vTaskDelayUntil(&xLastWakeTime, xFrequency); // 等待下一个周期
-
-        // ArduinoOTA.handle();                         //OTA必须运行的检测语句
 
         vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
     }
@@ -248,20 +277,20 @@ void Task_UpdateTime(void *pvParameters) //时间更新任务，1秒钟更新1�
         // 等待下一个周期
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
 
-        // if (getLocalTime(&time_in_RAM)) // update time From ESP32 to RAM
-        // {
-        //     // Serial.println(&time_in_RAM, "%F %T");
-        // }
-        // else
-        // {
-        //     Serial.println("time update error");
-        // }
-
         getLocalTime(&time_in_RAM);
-        Serial.println(&time_in_RAM, "%F %T");
+        // Serial.println(&time_in_RAM, "%F %T");
 
         // BTRYvoltage=analogRead(35)/4095*3.3*2;
         BTRYvoltage = analogRead(35) * 0.001795;
         BTRYpercentage = floatMapping(BTRYvoltage, 2.8, 3.6, 0, 100);
+        if (BTRYpercentage > 99)
+            BTRYpercentage = 99;
+
+        if (GPSNeverConnected && gps.satellites.value() >= 3)
+        {
+            GPSNeverConnected = false;
+            GPStoRAM();
+            // RAMtoRTC();
+        }
     }
 }
