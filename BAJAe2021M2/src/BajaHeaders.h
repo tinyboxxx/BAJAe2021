@@ -223,11 +223,10 @@ void setSystemTime()
 
 void printRTCtime() //输出RTC芯片的时间
 {
-    struct tm TimeInRTC;
-    if (rtc.read(&TimeInRTC))
+    if (rtc.read(&time_in_RAM))
     {
         TELL_EVERYONE("RTC time:")
-        TELL_EVERYONE_LN(asctime(&TimeInRTC))
+        TELL_EVERYONE_LN(asctime(&time_in_RAM))
     }
     else
     {
@@ -251,6 +250,15 @@ void printRAMtime() //输出内存的时间
 
 void RTCtoRAM() //读取RTC的时间到机内rtc 开机运行一次
 {
+    if (!rtc.read(&time_in_RAM))
+    {
+        Serial.println(F("RTC read failed"));
+    }
+    else
+    {
+        Serial.println(asctime(&time_in_RAM));
+    }
+
     uint8_t hour;
     uint8_t min;
     uint8_t sec;
@@ -264,29 +272,27 @@ void RTCtoRAM() //读取RTC的时间到机内rtc 开机运行一次
         Serial.println(F("Read date/time failed"));
         return;
     }
-    rtc_builtin.setTime(sec, min, hour, mday, mon, year); 
+    rtc_builtin.setTime(sec, min, hour, mday, mon, year);
 }
 void RAMtoRTC() //写入时间至RTC，未测试
 {
     TELL_EVERYONE_LN("RAMtoRTC");
-    if (DS3231isOK)
-    {
-        printRAMtime();
-        printRTCtime();
 
-        time_t nowEpoch;
-        time(&nowEpoch);
-        rtc.setEpoch(nowEpoch - 8 * 3600); //我们时区在+8区
-        printRAMtime();
-        printRTCtime();
+    // printRAMtime();
+    // printRTCtime();
 
-        // Set date/time: 12:34:56 31 December 2020 Sunday
-        // if (!rtc.setDateTime(12, 34, 56, 31, 12, 2020, 0))
-        // {
-        //     Serial.println(F("Set date/time failed"));
-        //     return;
-        // }
-    }
+    // time_t nowEpoch;
+    // time(&nowEpoch);
+    // rtc.setEpoch(nowEpoch - 8 * 3600); //我们时区在+8区
+    // printRAMtime();
+    // printRTCtime();
+
+    // Set date/time: 12:34:56 31 December 2020 Sunday
+    // if (!rtc.setDateTime(12, 34, 56, 31, 12, 2020, 0))
+    // {
+    //     Serial.println(F("Set date/time failed"));
+    //     return;
+    // }
 }
 void NTPtoRAM() //联网获取正确时间，需要WiFi
 {
