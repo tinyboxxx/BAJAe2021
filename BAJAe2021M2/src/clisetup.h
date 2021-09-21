@@ -68,6 +68,18 @@ void cmd_gpstime(cmd *c)
     printGpsTime(); //读取GPS时间
 }
 
+void cmd_sendtele(cmd *c)
+{
+    Command cmd(c); // Create wrapper object
+    sendtele = 1; // 发送信息
+}
+void cmd_teleoff(cmd *c)
+{
+    Command cmd(c); // Create wrapper object
+    sendtele = 0; // 发送信息
+}
+
+
 void settime(cmd *c) // one argu cmd
 {
     int ind1; // , locations

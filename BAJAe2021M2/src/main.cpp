@@ -68,6 +68,8 @@ void setup(void)
   Command reboot_Cmd = cli.addCmd("reboot", reboot);
   Command printGpsTime_Cmd = cli.addCmd("gpstime", cmd_gpstime);
   Command settime_cmd = cli.addSingleArgCmd("settime", settime);
+  Command sendtele = cli.addSingleArgCmd("teleon", cmd_sendtele);
+  Command telepoff = cli.addSingleArgCmd("teleoff", cmd_teleoff);
 
   bootUpPrint("CLI booted!");
 
@@ -81,6 +83,7 @@ void setup(void)
   // Encoder ====================================
   pinMode(27, INPUT_PULLUP); //SPD
   attachInterrupt(27, SPD_TRIGGERED, FALLING);
+  pinMode(34, INPUT_PULLUP); //RPM
   attachInterrupt(34, RPM_TRIGGERED, RISING);
 
   // IMU ====================================

@@ -121,10 +121,12 @@ bool timeSyncedFromGPS = false;
 
 int lora_power_mode = 0; // 0是正常功耗、2是低功耗。低功耗模式需要电脑端在1模式 唤醒模式，M0-1、M1-0。
 
+bool sendtele = false;
+
 //行车数据变量=============================
 unsigned int RPM = 0;
 unsigned int SPD = 0; //千米每小时
-double TRIP = 0.0; //米
+double TRIP = 0.0;    //米
 
 float GFx = 0;
 float GFy = 0;
@@ -336,7 +338,7 @@ unsigned long last_SPD_millis = 0;
 
 int RPM_count; // only for debug
 volatile int lastPulseCounter_RPM = 0;
-int RPM_Calc_Factor = 60000; //频率换算系数
+int RPM_Calc_Factor = 120000; //频率换算系数
 
 void IRAM_ATTR SPD_TRIGGERED()
 {
@@ -349,9 +351,12 @@ void IRAM_ATTR SPD_TRIGGERED()
 }
 void IRAM_ATTR RPM_TRIGGERED()
 {
-    RPM_count++;
-    RPM = RPM_Calc_Factor / (millis() - last_RPM_millis);
-    last_RPM_millis = millis();
+    if (millis() > last_RPM_millis + 15)
+    {
+        RPM_count++;
+        RPM = RPM_Calc_Factor / (millis() - last_RPM_millis);
+        last_RPM_millis = millis();
+    }
 }
 
 // Gear Ratio ====================================
