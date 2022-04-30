@@ -10,44 +10,30 @@ void drawSignal(U8G2 u8g2, uint8_t x, uint8_t y, uint8_t strength)
 
 void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
 {
-
     //所有字体列表：https://github.com/olikraus/u8g2/wiki/fntlistall
     //模拟器：https://p3dt.net/u8g2sim/
-
     (void)pvParameters;
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = 50;
-
-    // Initialise the xLastWakeTime variable with the current time.
-    xLastWakeTime = xTaskGetTickCount(); //获取当前tick
-    for (;;)                             // 任务永远不会返回或退出。
+    // const TickType_t xFrequency = 350;
+    unsigned long last_fpsOLED_calculate_time = 0; //上次OLED刷新的时间
+    xLastWakeTime = xTaskGetTickCount();           // Initialise the xLastWakeTime variable with the current time. 获取当前tick
+    for (;;)                                       // 任务永远不会返回或退出。
     {
-        vTaskDelayUntil(&xLastWakeTime, xFrequency); // 等待下一个周期。
-
+        // vTaskDelayUntil(&xLastWakeTime, xFrequency); // 等待下一个周期。
         if (isOTAing == 0) //正常运行中
         {
-            sensors_event_t a, g, temp;
-            mpu.getEvent(&a, &g, &temp);
-
-            GFx = a.acceleration.y;
-            GFy = a.acceleration.z;
-
             //(float)linearAccelData.acceleration.y 是车前后
             //(float)linearAccelData.acceleration.z 是车左右
-
             u8g2.clearBuffer(); //清空屏幕
             u8g2.setFont(u8g2_font_5x7_tr);
             char PrinterStr[20];
             sprintf(PrinterStr, "X%04.1f ", GFx);
             u8g2.drawStr(67, 9, PrinterStr);
-
             sprintf(PrinterStr, "Y%04.1f", GFy);
             u8g2.drawStr(67, 17, PrinterStr);
 
             if (RPM > 1700 && SPD > 5)
-            {
                 GearRatio = SPD * GearRatio_Calc_Facotr / RPM;
-            }
             else
                 GearRatio = 0;
 
@@ -57,8 +43,7 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             u8g2.setCursor(72, 36);
             u8g2.print(GearRatio);
 
-            // u8g2.drawFrame(0, 0, 65, 64);               //GForce 外框
-            u8g2.drawFrame(0, 0, 65, 64);               //GForce 外框
+            u8g2.drawFrame(0, 0, 65, 64);               // GForce 外框
             u8g2.drawLine(0, 32, 64, 32);               //横向中心线
             u8g2.drawLine(32, 0, 32, 64);               //纵向中心线
             u8g2.drawCircle(32, 32, 16, U8G2_DRAW_ALL); //小圈,圆的
@@ -77,52 +62,32 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
 
             char bufferStr2[2];
             if (gps_hdop <= 1.1 && gps_speed > 5)
-            {
-                sprintf(bufferStr2, "%02.0f", gps_speed);
-            }
+                sprintf(bufferStr2, "%02.0f", gps_speed); //使用GPS车速
             else
             {
-                // if (SPD > 99)
-                // {
-                //     sprintf(bufferStr2, "99");
-                // }
-                // else
-                // {
-
-                //     if (SPD < 5)
-                //     {
-                sprintf(bufferStr2, "00");
-                //     }
-                //     else
-                //     {
-                //         sprintf(bufferStr2, "%02d", SPD);
-                //     }
-                // }
+                if (SPD > 99)
+                    sprintf(bufferStr2, "99");
+                else if (SPD < 5)
+                    sprintf(bufferStr2, "00");
+                else
+                    sprintf(bufferStr2, "%02d", SPD);
             }
 
-            if (millis() - last_SPD_millis > 1300)
-            {
-                SPD = 0;
-            }
-            if (millis() - last_RPM_millis > 1500)
-            {
-                RPM = 0;
-            }
             u8g2.setFont(u8g2_font_logisoso50_tn);
-            u8g2.drawStr(95, 50, bufferStr2); //SPD文字显示
+            u8g2.drawStr(95, 50, bufferStr2); // SPD显示
 
-            u8g2.setFont(u8g2_font_t0_14b_mr); //日期时间显示
-            u8g2.setCursor(98, 64);            //时间
-            u8g2.print(&time_in_RAM, "%T");
+            u8g2.setFont(u8g2_font_t0_14b_mr);
+            u8g2.setCursor(98, 64);
+            u8g2.print(&time_in_RAM, "%T"); //时间显示
 
-            u8g2.setFont(u8g2_font_t0_12_mr); //日期显示
+            u8g2.setFont(u8g2_font_t0_12_mr);
             u8g2.setCursor(194, 62);
-            u8g2.print(&time_in_RAM, "%F");
+            u8g2.print(&time_in_RAM, "%F"); //日期显示
 
             u8g2.setFont(u8g2_font_logisoso22_tn);
             char bufferStr4[4];
             sprintf(bufferStr4, "%04d", RPM);
-            u8g2.drawStr(196, 24, bufferStr4); //RPM文字显示
+            u8g2.drawStr(196, 24, bufferStr4); // RPM文字显示
 
             u8g2.setFont(u8g2_font_6x10_mr);
             u8g2.drawStr(216, 33, "RPM");
@@ -137,18 +102,18 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             // if (WiFi.waitForConnectResult() != WL_CONNECTE)
             //     drawSignal(u8g2, 180, 12, 4); //满格信号，三格
 
-            u8g2.setFont(u8g2_font_siji_t_6x10); //battery BTY 电量
+            u8g2.setFont(u8g2_font_siji_t_6x10); // battery BTY 电量
             if (BTRYpercentage > 80)
             {
-                u8g2.drawGlyph(166, 9, 0xe254); //full
+                u8g2.drawGlyph(166, 9, 0xe254); // full
             }
             else if (BTRYpercentage > 30)
             {
-                u8g2.drawGlyph(166, 9, 0xe250); //half
+                u8g2.drawGlyph(166, 9, 0xe250); // half
             }
             else
             {
-                u8g2.drawGlyph(166, 9, 0xe242); //empty
+                u8g2.drawGlyph(166, 9, 0xe242); // empty
             }
 
             u8g2.setFont(u8g2_font_6x10_mr);
@@ -168,7 +133,7 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             u8g2.setCursor(166, 44);
             u8g2.println("Temp");
             u8g2.setCursor(166, 54);
-            u8g2.println(temp.temperature,1);
+            u8g2.println(boardTemp, 1);
 
             // fpsOLED = 1000.0 / (millis() - lastOLEDrefreshTime); //FPS
             // lastOLEDrefreshTime = millis();
@@ -176,32 +141,10 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             // sprintf(bufferStr4, "%02d", fpsOLED);
             // u8g2.drawStr(180, 64, bufferStr4);
 
-            u8g2.drawFrame(64, 0, 29, 64); //右侧外框
-
-            u8g2.drawFrame(164, 0, 29, 64); //右侧外框
-
-            u8g2.drawFrame(192, 0, 64, 64); //右侧外框
-
-            u8g2.sendBuffer(); //更新至屏幕
-
-            // if (setLEDtoSpeed == 1) //开始计算LED灯
-            // {
-            //     nShiftlightPos = intMapping(SPD, SPD_Display_MIN, SPD_Display_MAX, 0, 12);
-            // }
-            // else
-            // {
-            nShiftlightPos = floatMapping(RPM, RPM_Display_MIN, RPM_Display_MAX, 0, 12);
-            if (nShiftlightPos > 12)
-            {
-                nShiftlightPos = 12;
-            }
-            if (nShiftlightPos < 0)
-            {
-                nShiftlightPos = 0;
-            }
-            // }
-
-            set_MCP(nShiftlightPos, lora_power_mode);
+            u8g2.drawFrame(64, 0, 29, 64);  // 右侧外框
+            u8g2.drawFrame(164, 0, 29, 64); // 右侧外框
+            u8g2.drawFrame(192, 0, 64, 64); // 右侧外框
+            u8g2.sendBuffer();              // 更新至屏幕
         }
         else //正在OTA中
         {
@@ -217,7 +160,17 @@ void Task_UpdateDisplay(void *pvParameters) // OLED 刷新任务
             u8g2.drawStr(40, 20, bufferStr);
             u8g2.sendBuffer(); //更新至屏幕
         }
-        vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
+        // calculate freaquent
+        set_MCP(nShiftlightPos, lora_power_mode);
+        if (fps_on)
+        {
+            fpsOLED = fpsCalculate(millis() - last_fpsOLED_calculate_time);
+            last_fpsOLED_calculate_time = millis();
+            // print
+            TELL_EVERYONE("FPS_OLED:");
+            TELL_EVERYONE_LN(fpsOLED);
+        }
+        vTaskDelay(setfps_tick); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性 设置为50是感觉介于卡和流畅之间
     }
 }
 
@@ -230,13 +183,11 @@ void Task_GetGpsLora(void *pvParameters) // GPS刷新任务
     for (;;)
     {
         vTaskDelayUntil(&xLastWakeTime, xFrequency); // 等待下一个周期
-
         while (Serial1.available())
-            gps.encode(Serial1.read()); /* Get GPS data */
-
-        gps_hdop = gps.hdop.hdop();             //GPS 精度，越低越好
+            gps.encode(Serial1.read());         /* Get GPS data */
+        gps_hdop = gps.hdop.hdop();             // GPS 精度，越低越好
         gps_speed = gps.speed.kmph();           // GPS速度 kph
-        gps_sat_count = gps.satellites.value(); //GPS卫星数量
+        gps_sat_count = gps.satellites.value(); // GPS卫星数量
 
         if (Serial2.available())
         {
@@ -248,7 +199,6 @@ void Task_GetGpsLora(void *pvParameters) // GPS刷新任务
             String input = Serial.readStringUntil('\n'); // Read out string from the serial monitor
             cli.parse(input);                            // Parse the user input into the CLI
         }
-
         if (cli.errored())
         {
             CommandError cmdError = cli.getError();
@@ -261,8 +211,6 @@ void Task_GetGpsLora(void *pvParameters) // GPS刷新任务
                 Serial2.println("\"?");
             }
         }
-
-        // ArduinoOTA.handle(); //OTA必须运行的检测语句
     }
 }
 
@@ -270,23 +218,94 @@ void Task_UpdateData(void *pvParameters) // 测时速、转速、姿态、SD卡�
 {
     (void)pvParameters;
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = 8;
+    const TickType_t xFrequency = 10;
     xLastWakeTime = xTaskGetTickCount(); // 用当前时间初始化xLastWakeTime变量。
 
+    long last_fps_OLED_time = 0;
+    long last_fps_calculate_time = 0;
     for (;;)
     {
         vTaskDelayUntil(&xLastWakeTime, xFrequency); // 等待下一个周期
+        if (enableFakeData)
+        {
 
+            // fake data SPD RPM, from low to high, then high to low
+            if (SPD > SPD_Display_MAX)
+            {
+                SPD_fake_Decrease = true;
+            }
+            else if (SPD < SPD_Display_MIN)
+            {
+                SPD_fake_Decrease = false;
+            }
+            SPD = SPD + (SPD_fake_Decrease ? -1 : 1);
+
+            if (RPM > RPM_Display_MAX)
+            {
+                RPM_fake_Decrease = true;
+            }
+            else if (RPM < RPM_Display_MIN)
+            {
+                RPM_fake_Decrease = false;
+            }
+            RPM = RPM + (RPM_fake_Decrease ? -10 : 10);
+        }
+        else
+        {
+            // real data
+            if (millis() - last_SPD_millis > 1300)
+            {
+                SPD = 0;
+            }
+            if (millis() - last_RPM_millis > 1500)
+            {
+                RPM = 0;
+            }
+        }
+        // real data
+        sensors_event_t a, g, temp;
+        mpu.getEvent(&a, &g, &temp);
+        GFx = a.acceleration.y;
+        GFy = a.acceleration.z;
+        boardTemp = temp.temperature;
+
+        //开始计算LED灯
+        if (setLEDtoSpeed == 1) // 设置LED为SPD
+        {
+            nShiftlightPos = intMapping(SPD, SPD_Display_MIN, SPD_Display_MAX, 0, 12);
+        }
+        else // 设置LED为转速
+        {
+            nShiftlightPos = floatMapping(RPM, RPM_Display_MIN, RPM_Display_MAX, 0, 12);
+        }
+        if (nShiftlightPos > 12)
+        {
+            nShiftlightPos = 12;
+        }
+        if (nShiftlightPos < 0)
+        {
+            nShiftlightPos = 0;
+        }
+
+        // calculate freaquent
+        if (fps_calc_on)
+        {
+            fpsCalcu = fpsCalculate(millis() - last_fps_calculate_time);
+            last_fps_calculate_time = millis();
+            // print
+            TELL_EVERYONE("FPS_calc:");
+            TELL_EVERYONE_LN(fpsCalcu);
+        }
         vTaskDelay(1); // 两次读取之间有一个刻度延迟（15毫秒），以确保稳定性
     }
 }
 
-//时间更新任务
-//时间的准确性排序：GPS、NTP、RTC、RAM
-//时间的效率排序：RAM、RTC、NTP、GPS
-//应当开机时从RTC读取时间到RAM，随后手动要求更新RTC。
 void Task_UpdateTime(void *pvParameters) //时间更新任务，1秒钟更新1次。电量更新
 {
+    //时间更新任务
+    //时间的准确性排序：GPS、NTP、RTC、RAM
+    //时间的效率排序：RAM、RTC、NTP、GPS
+    //应当开机时从RTC读取时间到RAM，随后手动要求更新RTC。
     (void)pvParameters;
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 999;
@@ -311,6 +330,9 @@ void Task_UpdateTime(void *pvParameters) //时间更新任务，1秒钟更新1�
         //     GPStoRAM();
         //     // RAMtoRTC();
         // }
+
+        ArduinoOTA.handle(); // OTA必须运行的检测语句
+
         if (sendtele)
         {
             Serial2.print(RPM);
@@ -321,6 +343,15 @@ void Task_UpdateTime(void *pvParameters) //时间更新任务，1秒钟更新1�
             Serial2.print(",");
             Serial2.print(gps.location.lng(), 6);
             Serial2.print("\n");
+        }
+
+        if (!SD_CARD_ERROR)
+        {
+            String dataMessage;
+
+            dataMessage = String(rtc_builtin.getTime("%F_%H_%M_%S")) + "," + String(RPM) + "," + String(gps.location.lat(), 6) + "," + String(gps.location.lng(), 6) + "\r\n";
+
+            appendFile(SD, "/LOG_all.txt", dataMessage.c_str());
         }
     }
 }

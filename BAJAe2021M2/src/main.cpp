@@ -58,19 +58,8 @@ void setup(void)
     bootUpPrint("RTC error");
   }
   // CLI ====================================
-  cli.setOnError(errorCallback); // Set error Callback
-  Command turnoffwifi_Cmd = cli.addCmd("turnoffwifi", turnoffwifi);
-  Command turnonwifi_Cmd = cli.addCmd("turnonwifi", turnonwifi);
-  Command printip_cmd = cli.addCmd("printip", printip);
-  Command loralowpower_Cmd = cli.addCmd("loralowpower", loralowpower);
-  Command lorahighpower_Cmd = cli.addCmd("lorahighpower", lorahighpower);
-  Command Scanner_Cmd = cli.addCmd("i2cscan", i2cscan);
-  Command reboot_Cmd = cli.addCmd("reboot", reboot);
-  Command printGpsTime_Cmd = cli.addCmd("gpstime", cmd_gpstime);
-  Command settime_cmd = cli.addSingleArgCmd("settime", settime);
-  Command sendtele = cli.addSingleArgCmd("teleon", cmd_sendtele);
-  Command telepoff = cli.addSingleArgCmd("teleoff", cmd_teleoff);
 
+  #include "clicmdsetup.h" // 引用和初始化部分。
   bootUpPrint("CLI booted!");
 
   // GPS ====================================
@@ -78,12 +67,12 @@ void setup(void)
   bootUpPrint("GPS Serial 1 Begin!");
 
   // BTY ====================================
-  //IO35 -> BTY voltage x0.5
+  // IO35 -> BTY voltage x0.5
 
   // Encoder ====================================
-  pinMode(27, INPUT_PULLUP); //SPD
+  pinMode(27, INPUT_PULLUP); // SPD
   attachInterrupt(27, SPD_TRIGGERED, FALLING);
-  pinMode(34, INPUT_PULLUP); //RPM
+  pinMode(34, INPUT_PULLUP); // RPM
   attachInterrupt(34, RPM_TRIGGERED, RISING);
 
   // IMU ====================================
@@ -108,51 +97,95 @@ void setup(void)
   //     ,
   //     NULL);
   bootUpPrintWithLora("ALL BOOT Complete!");
-  xTaskCreatePinnedToCore(Task_UpdateDisplay, "Task_UpdateDisplay" // 屏幕刷新任务
-                          ,
-                          30000, NULL, 1, NULL, 1);
-  xTaskCreatePinnedToCore(Task_GetGpsLora, "Task_GetGpsLora" // GPS数据更新任务
-                          ,
-                          16384, NULL, 1, NULL, 1);
-  xTaskCreatePinnedToCore(Task_UpdateTime, "Task_UpdateTime" // 测速任务
-                          ,
-                          4000, NULL, 1, NULL, 1);
+  xTaskCreate(Task_UpdateData, "Task_UpdateData" // 屏幕刷新任务
+              ,
+              5000, NULL, 1, NULL);
+  xTaskCreate(Task_UpdateDisplay, "Task_UpdateDisplay" // 屏幕刷新任务
+              ,
+              30000, NULL, 2, NULL);
+  xTaskCreate(Task_GetGpsLora, "Task_GetGpsLora" // GPS数据更新任务
+              ,
+              16384, NULL, 1, NULL);
+  xTaskCreate(Task_UpdateTime, "Task_UpdateTime" // 测速任务
+              ,
+              4000, NULL, 1, NULL);
 
-  // ArduinoOTA
-  //     .onStart([]()
-  //              {
-  //                String type;
-  //                if (ArduinoOTA.getCommand() == U_FLASH)
-  //                  type = "sketch";
-  //                else // U_SPIFFS
-  //                  type = "filesystem";
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  TELL_EVERYONE("IP address: ");
+  TELL_EVERYONE_LN(WiFi.localIP());
+  ArduinoOTA
+      .onStart([]()
+               {
+                 String type;
+                 if (ArduinoOTA.getCommand() == U_FLASH)
+                   type = "sketch";
+                 else // U_SPIFFS
+                   type = "filesystem";
 
-  //                // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-  //                Serial.println("Start updating " + type);
-  //              })
-  //     .onEnd([]()
-  //            { Serial.println("\nEnd"); })
-  //     .onProgress([](unsigned int progress, unsigned int total)
-  //                 { Serial.printf("Progress: %u%%\r", (progress / (total / 100))); })
-  //     .onError([](ota_error_t error)
-  //              {
-  //                Serial.printf("Error[%u]: ", error);
-  //                if (error == OTA_AUTH_ERROR)
-  //                  Serial.println("Auth Failed");
-  //                else if (error == OTA_BEGIN_ERROR)
-  //                  Serial.println("Begin Failed");
-  //                else if (error == OTA_CONNECT_ERROR)
-  //                  Serial.println("Connect Failed");
-  //                else if (error == OTA_RECEIVE_ERROR)
-  //                  Serial.println("Receive Failed");
-  //                else if (error == OTA_END_ERROR)
-  //                  Serial.println("End Failed");
-  //              });
+                 // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+                 Serial.println("Start updating " + type); })
+      .onEnd([]()
+             { Serial.println("\nEnd"); })
+      .onProgress([](unsigned int progress, unsigned int total)
+                  { Serial.printf("Progress: %u%%\r", (progress / (total / 100))); })
+      .onError([](ota_error_t error)
+               {
+                 Serial.printf("Error[%u]: ", error);
+                 if (error == OTA_AUTH_ERROR)
+                   Serial.println("Auth Failed");
+                 else if (error == OTA_BEGIN_ERROR)
+                   Serial.println("Begin Failed");
+                 else if (error == OTA_CONNECT_ERROR)
+                   Serial.println("Connect Failed");
+                 else if (error == OTA_RECEIVE_ERROR)
+                   Serial.println("Receive Failed");
+                 else if (error == OTA_END_ERROR)
+                   Serial.println("End Failed"); });
+  ArduinoOTA.begin();
 
-  // // ArduinoOTA.begin();
+  if (!SD.begin(32))
+  {
+    Serial.println("Card Mount Failed");
+    SD_CARD_ERROR = true;
+  }
+  else
+  {
+    uint8_t cardType = SD.cardType();
+    if (cardType == CARD_NONE)
+    {
+      Serial.println("No SD card attached");
+    }
+    else
+    {
+      Serial.print("SD Card Type: ");
+      if (cardType == CARD_MMC)
+      {
+        Serial.println("MMC");
+      }
+      else if (cardType == CARD_SD)
+      {
+        Serial.println("SDSC");
+      }
+      else if (cardType == CARD_SDHC)
+      {
+        Serial.println("SDHC");
+      }
+      else
+      {
+        Serial.println("UNKNOWN");
+      }
 
-  // // Serial.print("IP address: ");
-  // // Serial.println(WiFi.localIP());
+      uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+      Serial.printf("SD Card Size: %lluMB\n", cardSize);
+
+      listDir(SD, "/", 0);
+      writeFile(SD, "/LOG_all.txt", "BOOT. LOG START \nTime:");
+      appendFile(SD, "/LOG_all.txt", rtc_builtin.getTime("%F_%H_%M_%S%n").c_str());
+      Serial.printf("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
+      Serial.printf("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
+    }
+  } 
 }
 
 void loop(void)

@@ -1,7 +1,6 @@
 //本文件为ino顶部的引用和初始化部分。
 
 #define DEBUG
-
 #ifdef DEBUG
 #define DEBUG_PRINT(x)       \
     Serial.print(F(#x ":")); \
@@ -22,12 +21,12 @@
 #define TELL_EVERYONE_LN(x) \
     Serial.println(x);      \
     Serial2.println(x);
-//futureSDcardhere
+// futureSDcardhere
 
 #define TELL_EVERYONE(x) \
     Serial.print(x);     \
     Serial2.print(x);
-//futureSDcardhere
+// futureSDcardhere
 
 #include <Arduino.h>
 #include <U8g2lib.h>
@@ -46,14 +45,15 @@
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
-char *ssid = "TiWifi";
-char *password = "hexiaoqi97";
+#include "wifipassword.h"
+// in wifipassword.h file, define ssid and password
+// char *ssid = "yourwifiname";
+// char *password = "yourpassword";
 const char *ntpServer = "cn.ntp.org.cn";
-#define gmtOffset_sec 28800 //GMT 时差 (seconds) 8 * 60 * 60
+#define gmtOffset_sec 28800 // GMT 时差 (seconds) 8 * 60 * 60
 
 // LED灯条 =====================================
 // http://www.esp32learning.com/code/esp32-and-mcp23017-flashy-led-example.php
-
 #define RPM_Display_MIN 1500
 #define RPM_Display_MAX 3750
 #define SPD_Display_MIN 3
@@ -71,29 +71,29 @@ U8G2LOG u8g2log; // Create a U8x8log object
 uint8_t u8log_buffer[U8LOG_WIDTH * U8LOG_HEIGHT]; // Allocate static memory for the U8x8log window
 
 // GPS ====================================
-#define Serial1_RXPIN 21           //to GPS TX
-#define Serial1_TXPIN 22           //to GPS RX
-const float Home_LAT = 33.205288;  // Your Home Latitude
-const float Home_LNG = -96.951125; // Your Home Longitude
+#define Serial1_RXPIN 21     // to GPS TX
+#define Serial1_TXPIN 22     // to GPS RX
+float Home_LAT = 33.205288;  // Your Home Latitude
+float Home_LNG = -96.951125; // Your Home Longitude
 int incomingByte;
 TinyGPSPlus gps; // 创建一个名为gps的TinyGPS++对象的实例。
 
 // TIME ====================================
 #include "time.h"
 #include <ErriezDS3231.h> //https://github.com/Erriez/ErriezDS3231
-struct tm time_in_RAM;    //time in ESP32 RAM
+struct tm time_in_RAM;    // time in ESP32 RAM
 ErriezDS3231 rtc;
 
 #include <ESP32Time.h> //https://www.arduinolibraries.info/libraries/esp32-time
 ESP32Time rtc_builtin;
 
-//BTRY ====================================
+// BTRY ====================================
 float BTRYvoltage = 0;  //电池电压
 int BTRYpercentage = 0; //电池剩余电量，0~100
 
 // LORA ====================================
-#define Serial2_RXPIN 16 //to LORA TX
-#define Serial2_TXPIN 17 //to LORA RX
+#define Serial2_RXPIN 16 // to LORA TX
+#define Serial2_TXPIN 17 // to LORA RX
 
 // MPU6050
 #include <Adafruit_MPU6050.h>
@@ -102,11 +102,15 @@ Adafruit_MPU6050 mpu;
 
 // Stats 状态变量 ====================================
 bool setLEDtoSpeed = false; // 1:SPEED 0:RPM
-bool enableFakeData = true; //开启假数据
+bool enableFakeData = true; //开启假数据 debug
+bool SPD_fake_Decrease = false;
+bool RPM_fake_Decrease = false;
 
 unsigned int fpsOLED = 0;
+unsigned int fpsCalcu = 0;
 long lastOLEDrefreshTime = 0;
 int fpsGPS = 0;
+unsigned int setfps_tick = 50; //设置刷新频率
 
 bool wifi_connected = false;
 bool isOTAing = false;
@@ -123,6 +127,11 @@ int lora_power_mode = 0; // 0是正常功耗、2是低功耗。低功耗模式�
 
 bool sendtele = false;
 
+bool SD_CARD_ERROR = false;
+
+bool fps_on = false;
+bool fps_calc_on = false;
+
 //行车数据变量=============================
 unsigned int RPM = 0;
 unsigned int SPD = 0; //千米每小时
@@ -133,6 +142,7 @@ float GFy = 0;
 int GFx_OLED = 0;
 int GFy_OLED = 0;
 float GFx_OLED_ZoomLevel = 2;
+int boardTemp = 0; //板上温度，来自MPU6050，单位摄氏度
 
 float gps_hdop = 0.0;
 float gps_speed = 0.0;
@@ -285,7 +295,7 @@ static void setTimeZone(long offset, int daylight)
     char cdt[17] = "DST";
     char tz[33] = {0};
 
-    if (offset % 3600)
+    if (offset % 3600) //
     {
         sprintf(cst, "UTC%ld:%02u:%02u", offset / 3600, abs((offset % 3600) / 60), abs(offset % 60));
     }
@@ -319,9 +329,7 @@ void GPStoRAM() //读取GPS时间
     else
     {
         rtc_builtin.setTime(gps.time.second(), gps.time.minute(), gps.time.hour(), gps.date.day(), gps.date.month(), gps.date.year()); // 17th Jan 2021 15:24:30
-
         setTimeZone(-gmtOffset_sec, 0);
-
         TELL_EVERYONE_LN("GPS to RAM")
     }
 }
@@ -336,7 +344,7 @@ int SPD_Calc_Factor = 6350; //频率换算系数，计算方法见excel表
 unsigned long last_RPM_millis = 0;
 unsigned long last_SPD_millis = 0;
 
-int RPM_count; // only for debug
+long RPM_count; // only for debug
 volatile int lastPulseCounter_RPM = 0;
 int RPM_Calc_Factor = 120000; //频率换算系数
 
@@ -363,15 +371,14 @@ void IRAM_ATTR RPM_TRIGGERED()
 int GearRatio = 0;
 static int GearRatio_Calc_Facotr = 310;
 // 3750, 60, gear = 5
-/*
-GearRatio = SPD * GearRatio_Calc_Facotr / RPM;
-*/
+// GearRatio = SPD * GearRatio_Calc_Facotr / RPM;
 
 // 线性计算函数 ====================================
-long map(long x, long in_min, long in_max, long out_min, long out_max)
-{
-    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
+// multiple definition of function
+// long map(long x, long in_min, long in_max, long out_min, long out_max)
+// {
+//     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+// }
 
 int intMapping(int x, int in_min, int in_max, int out_min, int out_max)
 {
@@ -500,4 +507,14 @@ void set_MCP(int num_of_ON_LED, int lora_lowpower_mode)
     default:
         break;
     }
+}
+
+#include "SDcard.h"
+
+int fpsCalculate(int time_in_ms)
+{
+    int fps = 0;
+    if (time_in_ms != 0)
+        fps = 1000 / time_in_ms;
+    return fps;
 }

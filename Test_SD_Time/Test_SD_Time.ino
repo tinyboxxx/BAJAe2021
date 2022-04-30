@@ -22,11 +22,11 @@
 #define SCK  18
 #define MISO  19
 #define MOSI  23
-#define CS  25
+#define CS  32
 SPIClass spi = SPIClass(VSPI);
 
 const char* ssid     = "TiWifi";
-const char* password = "hexiaoqi";
+const char* password = "Hexiaoqi";
 
 long timezone = 8; 
 byte daysavetime = 1;
@@ -216,4 +216,3 @@ void setup(){
 void loop(){
 
 }
-

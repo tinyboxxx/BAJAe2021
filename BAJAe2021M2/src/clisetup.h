@@ -79,8 +79,7 @@ void cmd_teleoff(cmd *c)
     sendtele = 0; // 发送信息
 }
 
-
-void settime(cmd *c) // one argu cmd
+void settime(cmd *c) // 格式为 settime 2022,04,29,22,27,24
 {
     int ind1; // , locations
     int ind2;
@@ -115,7 +114,7 @@ void settime(cmd *c) // one argu cmd
     // DEBUG_PRINTLN(mon)
     // DEBUG_PRINTLN(year)
     // TELL_EVERYONE_LN("time set")
-    // printRAMtime();
+    printRAMtime();
     RAMtoRTC();
 }
 
@@ -136,4 +135,34 @@ void errorCallback(cmd_error *e) // Callback in case of an error
         Serial.print(cmdError.getCommand().toString());
         Serial.println("\"?");
     }
+}
+
+void cmd_fpson(cmd *c)
+{
+    Command cmd(c); // Create wrapper object
+    fps_on = true;
+}
+void cmd_fpsoff(cmd *c)
+{
+    Command cmd(c); // Create wrapper object
+    fps_on = false;
+}
+
+void cmd_calcpson(cmd *c)
+{
+    Command cmd(c); // Create wrapper object
+    fps_calc_on = true;
+}
+void cmd_calcpsoff(cmd *c)
+{
+    Command cmd(c); // Create wrapper object
+    fps_calc_on = false;
+}
+
+void cmd_setfps(cmd *c) //将传入的数据赋值给setfps
+{
+    Command cmd(c); // Create wrapper object
+    Argument arg = cmd.getArgument(0); // Get first (and only) Argument
+    String argVal = arg.getValue();    // Get value of argument
+    setfps_tick = argVal.toInt();
 }

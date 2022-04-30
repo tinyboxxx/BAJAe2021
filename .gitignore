@@ -33,3 +33,4 @@
 *.out
 *.app
 ArduinoOutput/*
+BAJAe2021M2/src/wifipassword.h
